@@ -249,7 +249,8 @@ const SoundEngine = {
 
 // --- Sub-Components ---
 const PowerButton = ({ children, onClick, variant = 'primary', className = '', disabled = false, loading = false }) => {
-  const baseStyle = "px-4 py-3 sm:px-6 sm:py-4 font-black italic uppercase tracking-wider transform transition-all duration-100 active:translate-y-1 active:shadow-none flex items-center justify-center gap-2 border-4 border-black skew-x-[-6deg] w-full select-none relative overflow-hidden";
+  // LUCAS MOD: Removed "overflow-hidden" to prevent text clipping on skewed buttons
+  const baseStyle = "px-4 py-3 sm:px-6 sm:py-4 font-black italic uppercase tracking-wider transform transition-all duration-100 active:translate-y-1 active:shadow-none flex items-center justify-center gap-2 border-4 border-black skew-x-[-6deg] w-full select-none relative";
   const variants = {
     primary: "bg-orange-500 text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-orange-400 hover:shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] disabled:bg-gray-400 disabled:shadow-none disabled:border-gray-500 disabled:cursor-not-allowed",
     secondary: "bg-white text-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50",
@@ -269,7 +270,8 @@ const PowerButton = ({ children, onClick, variant = 'primary', className = '', d
       disabled={disabled || loading}
       className={`${baseStyle} ${variants[variant]} ${className}`}
     >
-      <span className={variant !== 'ghost' ? "skew-x-[6deg] flex items-center gap-2" : ""}>
+      {/* LUCAS MOD: Added whitespace-nowrap to ensure text doesn't wrap weirdly inside skewed box */}
+      <span className={variant !== 'ghost' ? "skew-x-[6deg] flex items-center gap-2 whitespace-nowrap" : ""}>
         {loading ? <Loader2 className="animate-spin" size={20} /> : children}
       </span>
     </button>
@@ -686,12 +688,16 @@ export default function MorningStrategistV4() {
       
       // 針對 Domain 未授權的特定錯誤處理 (常見於預覽環境)
       if (error.code === 'auth/unauthorized-domain' || error.message.includes('unauthorized-domain')) {
-         setErrorMsg("⚠️ 預覽網域未授權：請至 Firebase Console 新增此網域，或在 Localhost/正式站 測試。");
+         // LUCAS: 這裡改為友善提示，並自動切換訪客
+         setErrorMsg("⚠️ 預覽環境限制：Google 登入僅限正式站。已為您自動切換至「訪客模式」繼續使用。");
+         
          // 嘗試切換回匿名登入，讓使用者不被卡住
          if (!user) {
              try {
                 await signInAnonymously(auth);
-             } catch(e) { /* ignore */ }
+             } catch(e) { 
+                console.error("Guest login failed", e);
+             }
          }
       } else if (error.code === 'auth/popup-closed-by-user') {
          setErrorMsg("登入已取消");
