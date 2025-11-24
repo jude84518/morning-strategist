@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
+import { 
+  getAuth, 
+  signInAnonymously, 
+  onAuthStateChanged, 
+  signInWithCustomToken,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut
+} from 'firebase/auth';
 import {
   getFirestore,
   collection,
@@ -40,11 +48,15 @@ import {
   Flame,
   AlertTriangle,
   Droplets,
-  Volume2
+  Volume2,
+  LogOut,
+  User
 } from 'lucide-react';
 
-// --- Firebase Configuration (Lucas's Project) ---
-const firebaseConfig = {
+// --- Firebase Configuration ---
+// LUCAS 注意：為了讓預覽視窗能運作，我加了判斷式。
+// 當你在本地端運行或部署時，會使用你原本提供的 Config。
+const MY_FIREBASE_CONFIG = {
   apiKey: "AIzaSyAn-Xu7KO3g7fKgcXcxWmszsB84acCjCuc",
   authDomain: "morning-strategist-lucas-b87bd.firebaseapp.com",
   projectId: "morning-strategist-lucas-b87bd",
@@ -53,12 +65,15 @@ const firebaseConfig = {
   appId: "1:984226698122:web:f40a653092cc491082ee73"
 };
 
+// 混合配置邏輯
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : MY_FIREBASE_CONFIG;
+
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-// 使用固定的 App ID 作為資料庫路徑識別
-const appId = "morning-strategist-production";
+// 使用環境變數的 app_id 或者你原本設定的 ID
+const appId = typeof __app_id !== 'undefined' ? __app_id : "morning-strategist-production";
 
 // --- DATABASE (ANIME PURE EDITION) ---
 const QUOTE_DATABASE = [
@@ -240,7 +255,8 @@ const PowerButton = ({ children, onClick, variant = 'primary', className = '', d
     secondary: "bg-white text-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50",
     success: "bg-black text-orange-500 border-orange-500 shadow-[4px_4px_0px_0px_rgba(249,115,22,1)] hover:bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed",
     info: "bg-blue-500 text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-blue-400",
-    ghost: "bg-transparent border-dashed border-2 border-gray-300 text-gray-400 hover:border-gray-500 hover:text-gray-600 skew-x-0 shadow-none"
+    ghost: "bg-transparent border-dashed border-2 border-gray-300 text-gray-400 hover:border-gray-500 hover:text-gray-600 skew-x-0 shadow-none",
+    google: "bg-white text-black border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50" // New Variant
   };
   return (
     <button
@@ -253,7 +269,7 @@ const PowerButton = ({ children, onClick, variant = 'primary', className = '', d
       disabled={disabled || loading}
       className={`${baseStyle} ${variants[variant]} ${className}`}
     >
-      <span className={variant !== 'ghost' ? "skew-x-[6deg]" : ""}>
+      <span className={variant !== 'ghost' ? "skew-x-[6deg] flex items-center gap-2" : ""}>
         {loading ? <Loader2 className="animate-spin" size={20} /> : children}
       </span>
     </button>
@@ -545,12 +561,15 @@ const ScoreCard = ({ record, onClose }) => {
 }
 
 // --- Main App Component ---
-export default function MorningStrategistV35() {
+export default function MorningStrategistV4() {
   const [user, setUser] = useState(null);
   const [phase, setPhase] = useState('loading');
   const [history, setHistory] = useState([]);
   const [errorMsg, setErrorMsg] = useState(null);
-  const [hasManualReset, setHasManualReset] = useState(false); // Add: 用來標記是否手動重置過
+  const [hasManualReset, setHasManualReset] = useState(false);
+
+  // Auth Loading
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
 
   // Content State
   const [todayQuote, setTodayQuote] = useState({ text: "", char: "", src: "" });
@@ -631,18 +650,21 @@ export default function MorningStrategistV35() {
 
   // --- Auth & Init ---
   useEffect(() => {
+    // 1. Initialize Auth State Listener
+    // 我們移除強制立即匿名登入，改為監聽狀態。
+    // 如果沒有 User，我們保留在 'sleeping' 階段等待使用者操作 (或按下 Start 時觸發匿名)
+    
+    // 初始化自訂 token (preview 環境用)
     const initAuth = async () => {
-      try {
-        await signInAnonymously(auth);
-      } catch (e) {
-        setErrorMsg("登入失敗，請檢查網路連線");
+      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+        await signInWithCustomToken(auth, __initial_auth_token);
       }
     };
     initAuth();
 
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      if (currentUser && phase === 'loading') {
+      if (phase === 'loading') {
         setTodayQuote(getDailySeededQuote());
         setRestQuote(REST_QUOTES[Math.floor(Math.random() * REST_QUOTES.length)]);
         setPhase('sleeping');
@@ -651,9 +673,57 @@ export default function MorningStrategistV35() {
     return () => unsubscribe();
   }, []);
 
+  // --- Google Login Handler ---
+  const handleGoogleLogin = async () => {
+    setIsAuthLoading(true);
+    setErrorMsg(null); // 清除舊錯誤
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+      // 登入成功後 onAuthStateChanged 會自動更新 user，並拉取該 user 的 Firestore 資料
+    } catch (error) {
+      console.error("Login Failed", error);
+      
+      // 針對 Domain 未授權的特定錯誤處理 (常見於預覽環境)
+      if (error.code === 'auth/unauthorized-domain' || error.message.includes('unauthorized-domain')) {
+         setErrorMsg("⚠️ 預覽網域未授權：請至 Firebase Console 新增此網域，或在 Localhost/正式站 測試。");
+         // 嘗試切換回匿名登入，讓使用者不被卡住
+         if (!user) {
+             try {
+                await signInAnonymously(auth);
+             } catch(e) { /* ignore */ }
+         }
+      } else if (error.code === 'auth/popup-closed-by-user') {
+         setErrorMsg("登入已取消");
+      } else if (error.code === 'auth/popup-blocked') {
+         setErrorMsg("登入視窗被瀏覽器攔截，請允許彈跳視窗。");
+      } else {
+         setErrorMsg("登入失敗: " + error.message);
+      }
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setHistory([]); // Clear local history
+      setPhase('sleeping'); // Back to start
+      setHasManualReset(true);
+    } catch (error) {
+      console.error("Logout Failed", error);
+    }
+  };
+
   // History Listener
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+        setHistory([]);
+        return;
+    };
+    
+    // 使用使用者的 UID 抓取資料
     const q = query(
       collection(db, 'artifacts', appId, 'users', user.uid, 'morning_sessions'),
       orderBy('createdAt', 'desc')
@@ -712,8 +782,19 @@ export default function MorningStrategistV35() {
   };
 
   // --- Actions ---
-  const handleWakeUp = () => {
+  const handleWakeUp = async () => {
     SoundEngine.init(); // Pre-warm audio
+
+    // 如果沒有登入，這裡自動觸發匿名登入，保證可以存檔
+    if (!user) {
+        try {
+            await signInAnonymously(auth);
+        } catch(e) {
+            console.error("Anon Auth Failed", e);
+            setErrorMsg("無法建立匿名連線");
+            return;
+        }
+    }
 
     const now = new Date();
     const hours = String(now.getHours()).padStart(2, '0');
@@ -902,6 +983,28 @@ export default function MorningStrategistV35() {
         >
           {showStats ? "List" : "Stats"}
         </button>
+      </div>
+
+      <div className="mb-4 flex items-center justify-between bg-gray-100 p-3 rounded border border-gray-200">
+          <div className="flex items-center gap-2">
+            {user?.photoURL ? (
+                <img src={user.photoURL} alt="User" className="w-8 h-8 rounded-full border border-black" />
+            ) : (
+                <div className="w-8 h-8 bg-black text-white flex items-center justify-center rounded-full font-bold">
+                    {user?.isAnonymous ? "?" : (user?.displayName?.[0] || "U")}
+                </div>
+            )}
+            <div className="text-xs">
+                <div className="font-bold text-gray-500">CURRENT PLAYER</div>
+                <div className="font-black truncate max-w-[120px]">{user?.isAnonymous ? "Guest (Anonymous)" : (user?.displayName || "Unknown User")}</div>
+            </div>
+          </div>
+          <button 
+            onClick={handleLogout}
+            className="flex items-center gap-1 text-xs font-bold text-red-500 hover:text-red-700 bg-white border border-red-200 px-2 py-1 rounded hover:bg-red-50"
+          >
+            <LogOut size={12} /> Sign Out
+          </button>
       </div>
 
       {showStats ? (
@@ -1433,8 +1536,22 @@ export default function MorningStrategistV35() {
                   <Zap size={80} className="text-orange-500 fill-orange-500 transform rotate-12 drop-shadow-[4px_4px_0px_rgba(255,255,255,1)]" />
                 </div>
                 <h1 className="text-5xl sm:text-6xl font-black italic text-white uppercase tracking-tighter transform -skew-x-6 leading-none drop-shadow-[4px_4px_0px_rgba(249,115,22,1)] text-center">
-                  早安,<br /><span className="text-orange-500 text-6xl sm:text-7xl">LUCAS</span>.
+                  早安,<br />
+                  <span className="text-orange-500 text-6xl sm:text-7xl">
+                    {user && !user.isAnonymous ? (user.displayName || "LUCAS").split(' ')[0].toUpperCase() : "LUCAS"}.
+                  </span>
                 </h1>
+                
+                {/* Google Login Section - New! */}
+                {!user || user.isAnonymous ? (
+                    <div className="w-full max-w-xs transform -rotate-1">
+                        <PowerButton variant="google" onClick={handleGoogleLogin} loading={isAuthLoading} className="py-2 text-sm border-2">
+                             使用 Google 帳號登入 (Sync)
+                        </PowerButton>
+                        <p className="text-gray-500 text-[10px] font-bold text-center mt-1 uppercase">登入以跨裝置儲存戰績</p>
+                    </div>
+                ) : null}
+
                 <div className="w-full max-w-xs bg-white border-4 border-black p-4 shadow-[6px_6px_0px_0px_rgba(249,115,22,1)] transform rotate-1">
                   <div className="flex justify-between items-center mb-2 border-b-2 border-gray-200 pb-1">
                     <p className="text-orange-500 text-[10px] font-black uppercase tracking-widest">DAILY STRATEGY</p>
