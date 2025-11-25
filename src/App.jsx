@@ -59,7 +59,11 @@ import {
   Sun,
   Sunrise,
   Sunset,
-  LayoutList
+  LayoutList,
+  CloudLightning,
+  Wifi,
+  WifiOff,
+  Database
 } from 'lucide-react';
 
 // --- Firebase Configuration ---
@@ -78,9 +82,12 @@ const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__f
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : "morning-strategist-production";
 
-// --- DATABASE (ANIME PURE EDITION) ---
+// Fixed App ID for persistence
+const appId = "morning-strategist-lucas-persistent"; 
+const LOCAL_STORAGE_KEY = "morning-strategist-lucas-state-v2"; // Bump version to ensure clean state
+
+// --- DATABASE ---
 const QUOTE_DATABASE = [
   { text: "即使如此，地球依然在轉動。", char: "拉法爾", src: "關於地球的運動" },
   { text: "將這一份感動保留下來，這就是我們的使命。", char: "巴德尼", src: "關於地球的運動" },
@@ -505,7 +512,7 @@ const ScoreCard = ({ record, onClose }) => {
                              {record.checklist?.map(item => (
                                  <div key={item.id} className="flex items-center gap-2 text-sm">
                                      <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${item.checked ? 'bg-indigo-500 border-transparent' : 'border-slate-600'}`}>
-                                         {item.checked && <Check size={10} className="text-white" />}
+                                          {item.checked && <Check size={10} className="text-white" />}
                                      </div>
                                      <span className={item.checked ? 'text-indigo-200 font-bold' : 'text-slate-500'}>{item.text}</span>
                                  </div>
@@ -557,7 +564,7 @@ const ScoreCard = ({ record, onClose }) => {
           <div>
             <p className="text-xs text-gray-500 font-bold uppercase mb-2">EXERCISE</p>
             <p className={`text-lg font-black leading-tight ${isExerciseSkipped ? "text-gray-400 italic" : ""}`}>
-              {isExerciseSkipped ? "Rest Day" : record.exercise.name}
+              {isExerciseSkipped ? "Rest Day" : (record.exercise?.name || "Exercise")}
             </p>
             {!isExerciseSkipped && record.exerciseSets && (
               <span className="inline-block bg-black text-white text-[10px] font-bold px-1.5 py-0.5 mt-1">
@@ -610,9 +617,11 @@ const ScoreCard = ({ record, onClose }) => {
 }
 
 // --- Main App Component ---
-export default function MorningStrategistV4() {
+export default function MorningStrategistV5() {
   const [user, setUser] = useState(null);
   const [phase, setPhase] = useState('loading');
+  const [isRestoredSession, setIsRestoredSession] = useState(false);
+  const [isLocalSaved, setIsLocalSaved] = useState(false); // Indicator for save status
   
   // History States
   const [morningHistory, setMorningHistory] = useState([]);
@@ -677,17 +686,85 @@ export default function MorningStrategistV4() {
   const timerRef = useRef(null);
   const contentRef = useRef(null);
 
+  // --- Helpers for Local Storage ---
+  const saveLocalProgress = (state) => {
+      try {
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state));
+          setIsLocalSaved(true);
+          // Reset saved indicator after 3s
+          setTimeout(() => setIsLocalSaved(false), 3000);
+      } catch (e) {
+          console.error("Local save failed", e);
+      }
+  };
+
+  const clearLocalProgress = () => {
+      try {
+          localStorage.removeItem(LOCAL_STORAGE_KEY);
+      } catch (e) {
+          console.error("Local clear failed", e);
+      }
+  };
+  
+  // --- Missing Helper Function Added Back ---
+  const getDailySeededQuote = () => {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), 0, 0);
+    const diff = now - start;
+    const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const year = now.getFullYear();
+    const seed = (year * 13) + (dayOfYear * 7);
+    const quoteIndex = seed % QUOTE_DATABASE.length;
+    return QUOTE_DATABASE[quoteIndex];
+  };
+
+  // --- Auto-Save Effect ---
+  // Saves progress whenever critical state changes
+  useEffect(() => {
+    // We only want to save if we are in an "active" morning phase
+    const activePhases = ['mood-check', 'exercise', 'english', 'work-prep'];
+    // Special case: if phase is work-prep and step is focus, it's very active
+    
+    if (activePhases.includes(phase)) {
+        const stateToSave = {
+            date: new Date().toLocaleDateString('zh-TW'),
+            timestamp: Date.now(),
+            phase,
+            wakeUpTime,
+            actualWakeUpTime,
+            mood,
+            isWaterDrank,
+            selectedExercise,
+            targetSets,
+            currentSet,
+            setsCompleted,
+            selectedEnglishApps,
+            englishTopic,
+            workChecklist,
+            workSetupTime,
+            workTopic,
+            workStep,
+            timeLeft,
+            totalDuration,
+            // We don't save isActive as true, because we want it to be paused on restore
+        };
+        saveLocalProgress(stateToSave);
+    }
+  }, [
+      phase, wakeUpTime, actualWakeUpTime, mood, isWaterDrank, 
+      selectedExercise, targetSets, currentSet, setsCompleted, 
+      selectedEnglishApps, englishTopic, workChecklist, 
+      workSetupTime, workTopic, workStep, timeLeft, totalDuration
+  ]);
+
+
   // --- Time Logic ---
   useEffect(() => {
     const updateTimeContext = () => {
         const hour = new Date().getHours();
-        
-        // Greeting Logic
         if (hour >= 4 && hour < 11) setGreeting("早安");
         else if (hour >= 11 && hour < 18) setGreeting("午安");
         else setGreeting("晚安");
-
-        // Night Mode Logic (For visual styling only now)
         setIsNightMode(hour >= 18 || hour < 4);
     };
 
@@ -697,13 +774,29 @@ export default function MorningStrategistV4() {
   }, []);
 
 
-  // --- Auto-Load Today's Session ---
+  // --- Auto-Load Logic (Firestore + LocalStorage) ---
   useEffect(() => {
+    // Check if we have an active local session first
+    let hasActiveLocalSession = false;
+    try {
+        const savedRaw = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (savedRaw) {
+            const saved = JSON.parse(savedRaw);
+            const today = new Date().toLocaleDateString('zh-TW');
+            // If we have saved data for today AND it is in an active phase
+            if (saved.date === today && ['mood-check', 'exercise', 'english', 'work-prep', 'work'].includes(saved.phase)) {
+                hasActiveLocalSession = true;
+            }
+        }
+    } catch(e) {}
+
     if (morningHistory.length > 0 && !hasManualReset && (phase === 'sleeping' || phase === 'loading')) {
       const latest = morningHistory[0];
       const today = new Date().toLocaleDateString('zh-TW');
 
-      if (latest.dateDisplay === today) {
+      // 1. Priority: Check if already finished in Firestore
+      // CRITICAL FIX: Only if we DON'T have an active local session we are trying to restore
+      if (latest.dateDisplay === today && !hasActiveLocalSession) {
         setWakeUpTime(latest.wakeUpTarget);
         setActualWakeUpTime(latest.actualWakeUpTime);
         setMood(latest.mood);
@@ -719,23 +812,13 @@ export default function MorningStrategistV4() {
         setTimeLeft(0);
 
         setPhase('finished');
-      }
+        // If finished, we can clear any lingering local progress for today
+        clearLocalProgress(); 
+      } 
     }
   }, [morningHistory, hasManualReset, phase]);
 
-  // --- Helpers ---
-  const getDailySeededQuote = () => {
-    const now = new Date();
-    const start = new Date(now.getFullYear(), 0, 0);
-    const diff = now - start;
-    const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const year = now.getFullYear();
-    const seed = (year * 13) + (dayOfYear * 7);
-    const quoteIndex = seed % QUOTE_DATABASE.length;
-    return QUOTE_DATABASE[quoteIndex];
-  };
-
-  // --- Auth & Init ---
+  // --- Auth & Init & Restore ---
   useEffect(() => {
     const initAuth = async () => {
       if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -746,14 +829,61 @@ export default function MorningStrategistV4() {
 
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
+      
+      // On Auth Load, try to restore session if not finished
       if (phase === 'loading') {
         setTodayQuote(getDailySeededQuote());
         setRestQuote(REST_QUOTES[Math.floor(Math.random() * REST_QUOTES.length)]);
-        setPhase('sleeping');
+        
+        // CHECK LOCAL STORAGE RESTORE
+        let restored = false;
+        try {
+            const savedRaw = localStorage.getItem(LOCAL_STORAGE_KEY);
+            if (savedRaw) {
+                const saved = JSON.parse(savedRaw);
+                const today = new Date().toLocaleDateString('zh-TW');
+                
+                // Only restore if it's from today
+                if (saved.date === today) {
+                    console.log("Restoring session from local storage...");
+                    setWakeUpTime(saved.wakeUpTime);
+                    setActualWakeUpTime(saved.actualWakeUpTime);
+                    setMood(saved.mood);
+                    setIsWaterDrank(saved.isWaterDrank);
+                    setSelectedExercise(saved.selectedExercise);
+                    setTargetSets(saved.targetSets);
+                    setCurrentSet(saved.currentSet);
+                    setSetsCompleted(saved.setsCompleted);
+                    setSelectedEnglishApps(saved.selectedEnglishApps);
+                    setEnglishTopic(saved.englishTopic);
+                    setWorkChecklist(saved.workChecklist);
+                    setWorkSetupTime(saved.workSetupTime);
+                    setWorkTopic(saved.workTopic);
+                    setWorkStep(saved.workStep);
+                    setTimeLeft(saved.timeLeft);
+                    setTotalDuration(saved.totalDuration);
+                    
+                    // Important: Restore phase last
+                    setPhase(saved.phase);
+                    setIsActive(false); // Always start paused
+                    setIsRestoredSession(true);
+                    
+                    // Hide "Restored" badge after 3 seconds
+                    setTimeout(() => setIsRestoredSession(false), 3000);
+                    restored = true;
+                }
+            }
+        } catch (e) {
+            console.error("Restore failed", e);
+        }
+
+        if (!restored) {
+            setPhase('sleeping');
+        }
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, []); // Run once on mount mostly
 
   // --- Google Login Handler ---
   const handleGoogleLogin = async () => {
@@ -765,20 +895,20 @@ export default function MorningStrategistV4() {
     } catch (error) {
       console.error("Login Failed", error);
       if (error.code === 'auth/unauthorized-domain' || error.message.includes('unauthorized-domain')) {
-         setErrorMsg("⚠️ 預覽環境限制：Google 登入僅限正式站。已為您自動切換至「訪客模式」繼續使用。");
-         if (!user) {
-             try {
-                await signInAnonymously(auth);
-             } catch(e) { 
-                console.error("Guest login failed", e);
-             }
-         }
+          setErrorMsg("⚠️ 預覽環境限制：Google 登入僅限正式站。已為您自動切換至「訪客模式」繼續使用。");
+          if (!user) {
+              try {
+                 await signInAnonymously(auth);
+              } catch(e) { 
+                 console.error("Guest login failed", e);
+              }
+          }
       } else if (error.code === 'auth/popup-closed-by-user') {
-         setErrorMsg("登入已取消");
+          setErrorMsg("登入已取消");
       } else if (error.code === 'auth/popup-blocked') {
-         setErrorMsg("登入視窗被瀏覽器攔截，請允許彈跳視窗。");
+          setErrorMsg("登入視窗被瀏覽器攔截，請允許彈跳視窗。");
       } else {
-         setErrorMsg("登入失敗: " + error.message);
+          setErrorMsg("登入失敗: " + error.message);
       }
     } finally {
       setIsAuthLoading(false);
@@ -791,6 +921,8 @@ export default function MorningStrategistV4() {
       setHistory([]);
       setPhase('sleeping');
       setHasManualReset(true);
+      // Optional: Don't clear local progress on logout, so they can resume after login?
+      // Or clear it? Let's keep it for safety.
     } catch (error) {
       console.error("Logout Failed", error);
     }
@@ -1113,6 +1245,9 @@ export default function MorningStrategistV4() {
 
     setPhase('finished');
     if (!isSkipped) SoundEngine.playChime();
+    
+    // Clear local progress on successful completion
+    clearLocalProgress();
 
     const actualDuration = isSkipped ? 0 : (totalDuration > 0 ? Math.max(0, Math.ceil((totalDuration - timeLeft) / 60)) : 0);
 
@@ -1675,6 +1810,12 @@ export default function MorningStrategistV4() {
               FOCUS ON THE STRATEGY
             </p>
             {workTopic && <p className="text-center font-bold text-orange-600 mt-2 border-b-2 border-orange-200 inline-block mx-auto pb-1">{workTopic}</p>}
+            
+            {/* Sync Status Indicator */}
+            <div className={`mt-6 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-colors duration-500 ${isLocalSaved ? 'text-green-600' : 'text-gray-400'}`}>
+                {isLocalSaved ? <Wifi size={12} /> : <WifiOff size={12} />}
+                {isLocalSaved ? "AUTO-SAVED LOCAL" : "READY TO SYNC"}
+            </div>
           </div>
           <div className="mt-auto space-y-4">
             <div className="flex gap-3">
@@ -1842,13 +1983,28 @@ export default function MorningStrategistV4() {
             {errorMsg}
           </div>
         )}
+        
+        {/* Restore Banner */}
+        {isRestoredSession && (
+          <div className="absolute top-16 left-0 w-full bg-green-500 text-white text-center text-xs font-bold py-1 z-50 animate-fade-in flex items-center justify-center gap-2">
+            <CloudLightning size={14} className="fill-current" /> 已為您恢復上次中斷的進度 (Auto-Resumed)
+          </div>
+        )}
 
         {/* Fixed Header */}
         {phase !== 'loading' && phase !== 'finished' && phase !== 'sleeping' && phase !== 'history' && phase !== 'bedtime' && (
           <div className="h-16 shrink-0 bg-black border-b-4 border-orange-500 flex items-center justify-between px-4 sm:px-6 relative z-50 shadow-[0px_4px_0px_0px_rgba(249,115,22,1)]">
-            <span className="font-black italic text-2xl text-white tracking-tighter uppercase transform -skew-x-12">
-              M<span className="text-orange-500">.STRAT</span>
-            </span>
+            <div className="flex items-center gap-3">
+                <span className="font-black italic text-2xl text-white tracking-tighter uppercase transform -skew-x-12">
+                M<span className="text-orange-500">.STRAT</span>
+                </span>
+                {/* SAVED INDICATOR - INSIDE HEADER */}
+                <div className={`transition-all duration-300 overflow-hidden ${isLocalSaved ? 'w-16 opacity-100' : 'w-0 opacity-0'}`}>
+                    <div className="bg-green-500 text-white text-[10px] font-black uppercase px-2 py-1 whitespace-nowrap flex items-center gap-1 rounded transform skew-x-[-12deg]">
+                        <Save size={10} /> SAVED
+                    </div>
+                </div>
+            </div>
             <div className="flex items-center gap-2 bg-white border-2 border-black px-2 py-1 transform skew-x-[-12deg]">
               <span className="text-xs font-black text-black skew-x-[12deg]">{wakeUpTime} START</span>
             </div>
@@ -1958,6 +2114,11 @@ export default function MorningStrategistV4() {
           {phase === 'bedtime' && renderBedtimeView()}
         </div>
 
+        {/* SYSTEM STATUS BAR (Bottom) */}
+        <div className="bg-black text-gray-500 text-[9px] font-mono p-1 text-center uppercase tracking-widest flex justify-center items-center gap-2 relative z-50">
+             <Database size={10} /> SYSTEM: LOCAL BACKUP ACTIVE
+        </div>
+
         {/* Footer Progress */}
         {['mood-check', 'exercise', 'english', 'work-prep'].includes(phase) && (
           <div className="h-4 shrink-0 bg-black border-t-4 border-orange-500 flex z-50">
@@ -1987,4 +2148,3 @@ export default function MorningStrategistV4() {
     </div>
   );
 }
-
