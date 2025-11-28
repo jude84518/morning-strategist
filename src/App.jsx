@@ -40,6 +40,7 @@ import {
   X,
   History,
   ChevronLeft,
+  ChevronRight,
   MessageSquare,
   Sparkles,
   Edit3,
@@ -70,7 +71,9 @@ import {
   Laptop,
   AlertCircle,
   Dumbbell,
-  Brain
+  Brain,
+  Calendar as CalendarIcon,
+  MoreHorizontal
 } from 'lucide-react';
 
 // --- Firebase Configuration ---
@@ -538,6 +541,13 @@ const ScoreCard = ({ record, onClose }) => {
       return null; 
   };
 
+  // Helper for dynamic mood color in scorecard header
+  const getMoodColorClasses = (level) => {
+      if (level >= 5) return 'bg-orange-100 border-orange-500 text-orange-600';
+      if (level >= 3) return 'bg-purple-100 border-purple-500 text-purple-600';
+      return 'bg-slate-100 border-slate-500 text-slate-600';
+  };
+
   if (record.type === 'bedtime') {
       return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in" onClick={onClose}>
@@ -637,7 +647,7 @@ const ScoreCard = ({ record, onClose }) => {
 
         <div className="p-6 grid grid-cols-2 gap-6">
           <div className="col-span-2 flex items-center gap-4 border-b-2 border-gray-100 pb-4">
-            <div className="p-3 bg-orange-100 rounded-full border-2 border-orange-500 text-orange-600">
+            <div className={`p-3 rounded-full border-2 ${getMoodColorClasses(record.mood?.level)}`}>
               {record?.mood?.level >= 3 ? <Zap size={24} className="fill-current" /> : <Activity size={24} />}
             </div>
             <div>
@@ -724,7 +734,13 @@ export default function MorningStrategistV17() {
   
   // View State
   const [historyTab, setHistoryTab] = useState('morning'); // morning, work, bedtime
+  const [historyViewMode, setHistoryViewMode] = useState('list'); // 'list', 'calendar', 'stats'
+  const [showStats, setShowStats] = useState(false); // Legacy toggle, mapped to viewMode now
   
+  // Calendar State
+  const [calendarDate, setCalendarDate] = useState(new Date());
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState(new Date());
+
   const [errorMsg, setErrorMsg] = useState(null);
   const [hasManualReset, setHasManualReset] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
@@ -781,17 +797,22 @@ export default function MorningStrategistV17() {
 
   // View States
   const [viewingRecord, setViewingRecord] = useState(null);
-  const [showStats, setShowStats] = useState(false);
   const [recordToDelete, setRecordToDelete] = useState(null);
 
   // FIX: MOVE useMemo to top level to prevent hook order error
   const displayedHistory = useMemo(() => {
+      // If viewing a specific date in calendar mode, filter by that date
+      if (historyViewMode === 'calendar') {
+          const targetDateStr = selectedCalendarDate.toLocaleDateString('zh-TW');
+          return history.filter(r => r.dateDisplay === targetDateStr);
+      }
+
       return history.filter(r => {
           if (historyTab === 'bedtime') return r.type === 'bedtime';
           if (historyTab === 'work') return r.isWorkSession;
           return r.type !== 'bedtime' && !r.isWorkSession;
       });
-  }, [history, historyTab]);
+  }, [history, historyTab, historyViewMode, selectedCalendarDate]);
 
   const timerRef = useRef(null);
   const contentRef = useRef(null);
@@ -1118,11 +1139,200 @@ export default function MorningStrategistV17() {
       } catch(e) { setErrorMsg("存檔失敗: " + e.message); } finally { setIsSaving(false); setIsActive(false); }
   };
 
+  // --- Manual Reset Logic ---
+  const handleManualReset = () => {
+    // Reset specific states
+    setHasManualReset(true);
+    setReadingStep('setup');
+    setIsActive(false);
+    setActualPagesRead(0);
+    setIsWaterDrank(false);
+    setSetsCompleted(0);
+    setCurrentSet(1);
+    setActualWakeUpTime(null);
+    setMood(null);
+    setSelectedExercise(EXERCISE_ROUTINES[0]);
+    setSelectedEnglishApps([]);
+    setEnglishTopic("");
+    setWorkTopic("");
+    setWorkStep('setup');
+    setWorkDuration(50);
+    setReadingGoal(15);
+    setReadingTime(25);
+    setReadingBook("");
+    
+    // Bedtime reset
+    setBedtimeChecklist(BEDTIME_CHECKLIST_DEFAULTS);
+    setBedtimeNote("");
+    setBedtimeMood(null);
+
+    // Clear Storage
+    clearLocalProgress();
+    
+    // Feedback
+    SoundEngine.playError(); // Using the error sound as a "deletion" sound effect
+    setErrorMsg("系統已重置 (SYSTEM RESET)");
+    setTimeout(() => setErrorMsg(null), 1500);
+  };
+
   const renderIcon = (iconData) => { if (!iconData || typeof iconData !== 'string') return null; return iconData; };
+
+  // --- Render Daily Aggregated Timeline View (NEW) ---
+  const renderDayTimeline = (records) => {
+      // 1. Separate Records by Type
+      const morningRecords = records.filter(r => r.isMorningRoutine).sort((a,b) => a.timestamp - b.timestamp);
+      const workRecords = records.filter(r => r.isWorkSession).sort((a,b) => a.timestamp - b.timestamp);
+      const bedtimeRecords = records.filter(r => r.type === 'bedtime').sort((a,b) => a.timestamp - b.timestamp);
+
+      if (records.length === 0) {
+          return (
+              <div className="flex flex-col items-center justify-center py-10 text-gray-400 border-4 border-dashed border-gray-200">
+                  <CloudLightning size={48} className="mb-2 opacity-50" />
+                  <p className="font-bold text-sm">無戰鬥紀錄 (NO DATA)</p>
+              </div>
+          );
+      }
+
+      // 2. Helper Components for Timeline Items
+      const TimelineSection = ({ title, color, icon: Icon, children, isLast }) => (
+          <div className="relative pl-8 pb-8">
+              {/* Timeline Line */}
+              {!isLast && <div className="absolute top-8 left-3.5 bottom-0 w-1 bg-gray-200"></div>}
+              {/* Timeline Dot */}
+              <div className={`absolute top-0 left-0 w-8 h-8 rounded-full border-4 border-white ${color} flex items-center justify-center shadow-md z-10`}>
+                  <Icon size={14} className="text-white fill-current" />
+              </div>
+              {/* Content */}
+              <div className="bg-white border-2 border-gray-100 p-4 shadow-sm relative top-1">
+                  <h4 className="font-black text-sm uppercase tracking-wider mb-3 flex items-center gap-2 border-b border-gray-100 pb-2">
+                      {title}
+                  </h4>
+                  {children}
+              </div>
+          </div>
+      );
+
+      return (
+          <div className="py-4">
+              {/* MORNING SECTION */}
+              {morningRecords.map(record => (
+                  <TimelineSection key={record.id} title="早晨儀式 (LAUNCH)" color="bg-orange-500" icon={Sun}>
+                      <div className="grid grid-cols-2 gap-4">
+                          <div className="flex items-center gap-3">
+                              <div className="text-2xl">{renderIcon(record.mood?.icon) || "☀️"}</div>
+                              <div>
+                                  <div className="text-[10px] font-bold text-gray-400 uppercase">MOOD</div>
+                                  <div className="font-black text-sm">{record.mood?.label}</div>
+                              </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                              <div className="text-xl font-mono font-black text-orange-600">{record.actualWakeUpTime}</div>
+                              <div>
+                                  <div className="text-[10px] font-bold text-gray-400 uppercase">WAKE UP</div>
+                              </div>
+                          </div>
+                          
+                          <div className="col-span-2 space-y-2 border-t border-gray-100 pt-2 mt-1">
+                              {/* Exercise */}
+                              <div className="flex justify-between items-center text-xs">
+                                  <span className="font-bold text-gray-500 flex items-center gap-1"><Dumbbell size={12}/> 運動</span>
+                                  <span className="font-black">{record.exercise?.name || "休息"}</span>
+                              </div>
+                              {/* English */}
+                              <div className="flex justify-between items-center text-xs">
+                                  <span className="font-bold text-gray-500 flex items-center gap-1"><Mic size={12}/> 英文</span>
+                                  <span className="font-black truncate max-w-[150px]">
+                                      {record.english && record.english.length > 0 
+                                          ? record.english.map(aid => ENGLISH_APPS.find(a=>a.id===aid)?.name).join(', ') 
+                                          : "休息"}
+                                  </span>
+                              </div>
+                              {/* Reading */}
+                              <div className="flex justify-between items-center text-xs bg-orange-50 p-1 -mx-1">
+                                  <span className="font-bold text-orange-600 flex items-center gap-1"><BookOpen size={12}/> 閱讀</span>
+                                  <span className="font-black text-orange-800">{record.readingPages} 頁</span>
+                              </div>
+                          </div>
+                      </div>
+                  </TimelineSection>
+              ))}
+
+              {/* WORK SECTION */}
+              {workRecords.length > 0 && (
+                  <TimelineSection title="深度工作 (DEEP WORK)" color="bg-amber-500" icon={Briefcase}>
+                      <div className="space-y-3">
+                          {workRecords.map((work, idx) => (
+                              <div key={work.id} className="flex items-start gap-3 relative">
+                                  <div className="text-[10px] font-mono font-bold text-gray-400 mt-1 whitespace-nowrap">
+                                      {new Date(work.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                  </div>
+                                  <div className="flex-1 pb-2 border-b border-gray-100 last:border-0">
+                                      <div className="font-black text-sm text-black mb-1">{work.workTopic || "Deep Work Session"}</div>
+                                      <div className="inline-block bg-amber-100 text-amber-800 text-[10px] font-black px-1.5 py-0.5 rounded">
+                                          {work.workDuration} MIN
+                                      </div>
+                                  </div>
+                              </div>
+                          ))}
+                          <div className="text-right border-t border-gray-200 pt-2">
+                              <span className="text-xs font-bold text-gray-400 uppercase mr-2">今日專注總時數</span>
+                              <span className="text-lg font-black text-amber-600 font-mono">
+                                  {Math.floor(workRecords.reduce((acc, curr) => acc + (curr.workDuration || 0), 0) / 60)}h {workRecords.reduce((acc, curr) => acc + (curr.workDuration || 0), 0) % 60}m
+                              </span>
+                          </div>
+                      </div>
+                  </TimelineSection>
+              )}
+
+              {/* BEDTIME SECTION */}
+              {bedtimeRecords.map((record, idx) => (
+                  <TimelineSection key={record.id} title="系統關機 (SHUTDOWN)" color="bg-indigo-600" icon={Moon} isLast={idx === bedtimeRecords.length - 1}>
+                      <div className="bg-slate-50 -m-4 p-4 text-slate-700">
+                          <div className="flex justify-between items-start mb-3">
+                              <div className="flex items-center gap-2">
+                                  <span className="text-2xl">{renderIcon(record.mood?.icon)}</span>
+                                  <div>
+                                      <div className="text-[10px] font-bold text-slate-400 uppercase">SLEEP MOOD</div>
+                                      <div className="font-black text-sm text-slate-800">{record.mood?.label}</div>
+                                  </div>
+                              </div>
+                              <div className="text-xs font-mono font-bold text-slate-400">
+                                  {new Date(record.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                              </div>
+                          </div>
+                          
+                          <div className="space-y-1 mb-3">
+                              {record.checklist?.map(item => (
+                                  <div key={item.id} className="flex items-center gap-2 text-xs">
+                                      <div className={`w-3 h-3 rounded-full border flex items-center justify-center ${item.checked ? 'bg-indigo-500 border-indigo-500' : 'border-slate-300'}`}>
+                                          {item.checked && <Check size={8} className="text-white" />}
+                                      </div>
+                                      <span className={item.checked ? 'text-indigo-900 font-bold' : 'text-slate-400'}>{item.text}</span>
+                                  </div>
+                              ))}
+                          </div>
+
+                          {record.note && (
+                              <div className="bg-white p-2 border-l-2 border-indigo-300 italic text-xs text-slate-600">
+                                  "{record.note}"
+                              </div>
+                          )}
+                      </div>
+                  </TimelineSection>
+              ))}
+          </div>
+      );
+  };
 
   // --- Views ---
   const renderHistoryListView = () => {
-    // No useMemo here anymore, using the one from top-level scope
+    
+    // Helper to switch view modes
+    const switchMode = (mode) => {
+        setHistoryViewMode(mode);
+        setShowStats(mode === 'stats'); // syncing for compatibility if needed
+    };
+
     return (
         <div className="p-4 sm:p-6 pb-24 flex flex-col min-h-full bg-white">
         <div className="flex items-center justify-between mb-6 flex-shrink-0">
@@ -1130,142 +1340,230 @@ export default function MorningStrategistV17() {
             <button onClick={() => setPhase('sleeping')} className="p-2 border-2 border-black hover:bg-gray-100">
                 <ChevronLeft size={24} />
             </button>
-            <MangaHeader title={showStats ? "賽季總表" : "戰績回顧"} />
+            <MangaHeader title={historyViewMode === 'stats' ? "賽季總表" : historyViewMode === 'calendar' ? "戰略日曆" : "戰績回顧"} />
             </div>
-            <button
-            onClick={() => setShowStats(!showStats)}
-            className={`px-3 py-1 text-xs font-black uppercase border-2 border-black ${showStats ? 'bg-black text-white' : 'bg-white text-black'}`}
-            >
-            {showStats ? "列表" : "統計"}
+        </div>
+
+        {/* --- View Mode Toggle --- */}
+        <div className="flex border-4 border-black mb-6 bg-white">
+            <button onClick={() => switchMode('list')} className={`flex-1 py-2 font-black uppercase text-sm flex items-center justify-center gap-2 ${historyViewMode === 'list' ? 'bg-black text-white' : 'text-black hover:bg-gray-100'}`}>
+                <LayoutList size={16} /> 列表
+            </button>
+            <div className="w-1 bg-black"></div>
+            <button onClick={() => switchMode('calendar')} className={`flex-1 py-2 font-black uppercase text-sm flex items-center justify-center gap-2 ${historyViewMode === 'calendar' ? 'bg-black text-white' : 'text-black hover:bg-gray-100'}`}>
+                <CalendarIcon size={16} /> 日曆
+            </button>
+            <div className="w-1 bg-black"></div>
+            <button onClick={() => switchMode('stats')} className={`flex-1 py-2 font-black uppercase text-sm flex items-center justify-center gap-2 ${historyViewMode === 'stats' ? 'bg-black text-white' : 'text-black hover:bg-gray-100'}`}>
+                <BarChart2 size={16} /> 統計
             </button>
         </div>
 
-        <div className="mb-4 flex items-center justify-between bg-gray-100 p-3 rounded border border-gray-200">
-             <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-black text-white flex items-center justify-center rounded-full font-bold">
-                    {user?.isAnonymous ? "?" : (user?.displayName?.[0] || "L")}
+        {/* User Info (Show only on List or Calendar top) */}
+        {historyViewMode !== 'stats' && (
+            <div className="mb-4 flex items-center justify-between bg-gray-100 p-3 rounded border border-gray-200">
+                <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-black text-white flex items-center justify-center rounded-full font-bold">
+                        {user?.isAnonymous ? "?" : (user?.displayName?.[0] || "L")}
+                    </div>
+                    <div className="text-xs">
+                        <div className="font-bold text-gray-500">玩家 (PLAYER)</div>
+                        <div className="font-black truncate max-w-[120px]">{user?.isAnonymous ? "訪客" : (user?.displayName || "Lucas")}</div>
+                    </div>
                 </div>
-                <div className="text-xs">
-                    <div className="font-bold text-gray-500">玩家 (PLAYER)</div>
-                    <div className="font-black truncate max-w-[120px]">{user?.isAnonymous ? "訪客" : (user?.displayName || "Lucas")}</div>
-                </div>
-            </div>
-            <button onClick={handleLogout} className="text-xs font-bold text-red-500 hover:text-red-700 flex items-center gap-1"><LogOut size={10}/> 登出</button>
-        </div>
-
-        {!showStats && (
-            <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
-                <button onClick={() => setHistoryTab('morning')} className={`flex-1 py-2 font-black uppercase text-sm border-b-4 transition-all whitespace-nowrap ${historyTab === 'morning' ? 'border-orange-500 text-black' : 'border-transparent text-gray-300 hover:text-gray-500'}`}>早晨儀式</button>
-                <button onClick={() => setHistoryTab('work')} className={`flex-1 py-2 font-black uppercase text-sm border-b-4 transition-all whitespace-nowrap ${historyTab === 'work' ? 'border-amber-500 text-amber-900' : 'border-transparent text-gray-300 hover:text-gray-500'}`}>深度工作</button>
-                <button onClick={() => setHistoryTab('bedtime')} className={`flex-1 py-2 font-black uppercase text-sm border-b-4 transition-all whitespace-nowrap ${historyTab === 'bedtime' ? 'border-indigo-500 text-indigo-900' : 'border-transparent text-gray-300 hover:text-gray-500'}`}>睡前儀式</button>
+                <button onClick={handleLogout} className="text-xs font-bold text-red-500 hover:text-red-700 flex items-center gap-1"><LogOut size={10}/> 登出</button>
             </div>
         )}
 
-        {showStats ? (
-            <SeasonStatsDashboard history={history} />
-        ) : (
-            <div className="flex-1 space-y-4 animate-fade-in">
-            {displayedHistory.length === 0 ? (
-                <div className="text-center text-gray-400 py-10 italic flex flex-col items-center justify-center h-40">
-                    <p className="mb-2">尚無紀錄</p>
-                    {historyTab === 'work' && <p className="text-xs text-gray-300">點擊首頁「深度工作」開始累積</p>}
+        {/* --- CONTENT AREA --- */}
+        
+        {/* 1. LIST VIEW */}
+        {historyViewMode === 'list' && (
+            <>
+                <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+                    <button onClick={() => setHistoryTab('morning')} className={`flex-1 py-2 font-black uppercase text-sm border-b-4 transition-all whitespace-nowrap ${historyTab === 'morning' ? 'border-orange-500 text-black' : 'border-transparent text-gray-300 hover:text-gray-500'}`}>早晨儀式</button>
+                    <button onClick={() => setHistoryTab('work')} className={`flex-1 py-2 font-black uppercase text-sm border-b-4 transition-all whitespace-nowrap ${historyTab === 'work' ? 'border-amber-500 text-amber-900' : 'border-transparent text-gray-300 hover:text-gray-500'}`}>深度工作</button>
+                    <button onClick={() => setHistoryTab('bedtime')} className={`flex-1 py-2 font-black uppercase text-sm border-b-4 transition-all whitespace-nowrap ${historyTab === 'bedtime' ? 'border-indigo-500 text-indigo-900' : 'border-transparent text-gray-300 hover:text-gray-500'}`}>睡前儀式</button>
                 </div>
-            ) : (
-                displayedHistory.map((record) => {
-                if (record.type === 'bedtime') {
-                    return (
-                        <div key={record.id} onClick={() => setViewingRecord(record)} className="border-2 border-slate-700 p-4 relative cursor-pointer hover:-translate-y-1 bg-slate-900 text-slate-200 group mb-4">
-                            <div className="flex justify-between items-center mb-3">
-                                <div className="flex items-center gap-2">
-                                    <span className="bg-indigo-600 text-white px-2 py-1 text-xs font-bold font-mono">{record.dateDisplay}</span>
-                                    <span className="text-xs font-bold text-indigo-300 bg-slate-800 px-2 py-1 rounded flex items-center gap-1">
-                                        <Clock size={10} /> {new Date(record.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                    </span>
-                                </div>
-                                <button onClick={(e) => handleDeleteClick(e, record.id)} className="text-slate-500 hover:text-red-500"><Trash2 size={20} /></button>
-                            </div>
-                            <div className="flex items-center gap-2 text-sm font-bold text-white">
-                                <span>{renderIcon(record.mood?.icon)} {record.mood?.label}</span>
-                            </div>
+                <div className="flex-1 space-y-4 animate-fade-in">
+                    {displayedHistory.length === 0 ? (
+                        <div className="text-center text-gray-400 py-10 italic flex flex-col items-center justify-center h-40">
+                            <p className="mb-2">尚無紀錄</p>
+                            {historyTab === 'work' && <p className="text-xs text-gray-300">點擊首頁「深度工作」開始累積</p>}
                         </div>
-                    )
-                }
-                if (record.isWorkSession) {
-                    return (
-                        <div key={record.id} onClick={() => setViewingRecord(record)} className="border-4 border-black p-5 relative cursor-pointer hover:-translate-y-1 hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all bg-amber-50 group mb-4">
-                            <div className="flex justify-between items-start mb-4 border-b-2 border-amber-200 pb-2">
-                                <div className="flex items-center gap-2">
-                                    <span className="bg-black text-white px-2 py-1 text-xs font-bold font-mono">{record.dateDisplay}</span>
-                                    <span className="text-xs font-bold text-amber-800 bg-amber-100 px-2 py-1 rounded flex items-center gap-1">
-                                        <Clock size={10} /> {new Date(record.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                    </span>
-                                </div>
-                                <button onClick={(e) => handleDeleteClick(e, record.id)} className="text-gray-400 hover:text-red-500 transition-colors p-1"><Trash2 size={16} /></button>
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                <div className="flex justify-between items-end">
-                                    <span className="font-black text-xl leading-tight text-black break-words flex-1 pr-4">{record.workTopic || "Deep Work"}</span>
-                                    <div className="text-right shrink-0">
-                                        <span className="text-3xl font-black font-mono text-orange-600 leading-none block">{record.workDuration}</span>
-                                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">MINUTES</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )
-                }
-                // MORNING ROUTINE SUMMARY CARD
-                return (
-                    <div key={record.id} onClick={() => setViewingRecord(record)} className="border-4 border-black p-4 relative cursor-pointer hover:-translate-y-1 hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all bg-white group mb-3">
-                        {/* Date Header */}
-                        <div className="flex justify-between items-center mb-3 border-b-2 border-gray-100 pb-2">
-                            <div className="flex items-center gap-2">
-                                <span className="bg-black text-white px-2 py-1 text-xs font-bold font-mono">{record.dateDisplay}</span>
-                                <span className="text-xs font-black text-gray-500 bg-gray-100 px-2 py-1 rounded flex items-center gap-1">
-                                    <Sun size={10} /> {record.actualWakeUpTime || "N/A"}
-                                </span>
-                            </div>
-                            <button onClick={(e) => handleDeleteClick(e, record.id)} className="text-gray-300 hover:text-red-500 transition-colors p-1"><Trash2 size={16} /></button>
-                        </div>
+                    ) : (
+                        displayedHistory.map((record) => renderHistoryCard(record))
+                    )}
+                </div>
+            </>
+        )}
+
+        {/* 2. CALENDAR VIEW */}
+        {historyViewMode === 'calendar' && (
+            <div className="flex flex-col h-full animate-fade-in">
+                {/* Calendar Header Navigation */}
+                <div className="flex justify-between items-center mb-4 px-2">
+                    <button onClick={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1, 1))} className="p-2 hover:bg-gray-100 rounded-full"><ChevronLeft size={20} /></button>
+                    <span className="font-black text-lg">{calendarDate.getFullYear()} 年 {calendarDate.getMonth() + 1} 月</span>
+                    <button onClick={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 1))} className="p-2 hover:bg-gray-100 rounded-full"><ChevronRight size={20} /></button>
+                </div>
+
+                {/* Calendar Grid */}
+                <div className="grid grid-cols-7 gap-1 mb-2 text-center">
+                    {['日','一','二','三','四','五','六'].map(d => <div key={d} className="text-xs font-bold text-gray-400">{d}</div>)}
+                </div>
+                <div className="grid grid-cols-7 gap-1 mb-6">
+                    {/* Empty slots for start of month */}
+                    {Array.from({ length: new Date(calendarDate.getFullYear(), calendarDate.getMonth(), 1).getDay() }).map((_, i) => (
+                        <div key={`empty-${i}`} className="aspect-square"></div>
+                    ))}
+                    
+                    {/* Days */}
+                    {Array.from({ length: new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 0).getDate() }).map((_, i) => {
+                        const day = i + 1;
+                        const currentDayStr = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), day).toLocaleDateString('zh-TW');
+                        const isSelected = selectedCalendarDate.toLocaleDateString('zh-TW') === currentDayStr;
+                        const isToday = new Date().toLocaleDateString('zh-TW') === currentDayStr;
                         
-                        {/* Indicators Grid */}
-                        <div className="grid grid-cols-4 gap-2">
-                            {/* Mood */}
-                            <div className={`flex flex-col items-center justify-center p-2 rounded border-2 ${record.mood ? 'border-gray-200 bg-gray-50' : 'border-dashed border-gray-200 opacity-30'}`}>
-                                <div className="text-xl mb-1">{record.mood?.level >= 5 ? "🔥" : record.mood?.level >= 3 ? "⚡" : record.mood?.level === 1 ? "💤" : "😶"}</div>
-                                <span className="text-[9px] font-black uppercase text-gray-400">MOOD</span>
-                            </div>
+                        // Check records for this day
+                        const dayRecords = history.filter(r => r.dateDisplay === currentDayStr);
+                        const hasMorning = dayRecords.some(r => r.isMorningRoutine);
+                        const hasWork = dayRecords.some(r => r.isWorkSession);
+                        const hasBedtime = dayRecords.some(r => r.type === 'bedtime');
 
-                            {/* Exercise */}
-                            <div className={`flex flex-col items-center justify-center p-2 rounded border-2 ${record.exercise ? 'border-emerald-500 bg-emerald-50 text-emerald-600' : 'border-gray-200 text-gray-300 bg-gray-50 opacity-50'}`}>
-                                <Dumbbell size={20} className={record.exercise ? "fill-current" : ""} />
-                                <span className="text-[9px] font-black uppercase mt-1">BODY</span>
+                        return (
+                            <div 
+                                key={day} 
+                                onClick={() => setSelectedCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth(), day))}
+                                className={`aspect-square border-2 flex flex-col items-center justify-start pt-1 cursor-pointer transition-all relative ${isSelected ? 'border-black bg-gray-50' : 'border-transparent hover:border-gray-200'} ${isToday ? 'bg-orange-50' : ''}`}
+                            >
+                                <span className={`text-xs font-bold ${isToday ? 'text-orange-600' : 'text-gray-700'}`}>{day}</span>
+                                <div className="flex gap-0.5 mt-1 flex-wrap justify-center px-1">
+                                    {hasMorning && <div className="w-1.5 h-1.5 rounded-full bg-orange-500"></div>}
+                                    {hasWork && <div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div>}
+                                    {hasBedtime && <div className="w-1.5 h-1.5 rounded-full bg-purple-500"></div>}
+                                </div>
                             </div>
+                        );
+                    })}
+                </div>
 
-                            {/* English */}
-                            <div className={`flex flex-col items-center justify-center p-2 rounded border-2 ${record.english && record.english.length > 0 ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 text-gray-300 bg-gray-50 opacity-50'}`}>
-                                <Mic size={20} className={record.english && record.english.length > 0 ? "fill-current" : ""} />
-                                <span className="text-[9px] font-black uppercase mt-1">LANG</span>
-                            </div>
-
-                            {/* Reading */}
-                            <div className={`flex flex-col items-center justify-center p-2 rounded border-2 ${record.readingPages > 0 ? 'border-orange-500 bg-orange-50 text-orange-600' : 'border-gray-200 text-gray-300 bg-gray-50 opacity-50'}`}>
-                                <BookOpen size={20} className={record.readingPages > 0 ? "fill-current" : ""} />
-                                <span className="text-[9px] font-black uppercase mt-1">READ</span>
-                            </div>
-                        </div>
-                        {/* Optional: Show "Completed" text or arrow to indicate clickable */}
-                        <div className="text-center mt-2">
-                             <span className="text-[10px] font-bold text-gray-300 group-hover:text-orange-500 transition-colors">▼ CHECK DETAILS</span>
-                        </div>
+                {/* Selected Day Timeline View (UPDATED) */}
+                <div className="border-t-4 border-black pt-4 flex-1">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="font-black text-lg italic uppercase">{selectedCalendarDate.toLocaleDateString('zh-TW')}</h3>
+                        <span className="text-xs font-bold text-gray-400 uppercase">每日戰報</span>
                     </div>
-                    )
-                })
-            )}
+                    {/* Render the aggregated timeline instead of simple map */}
+                    {renderDayTimeline(displayedHistory)}
+                </div>
             </div>
+        )}
+
+        {/* 3. STATS VIEW */}
+        {historyViewMode === 'stats' && (
+            <SeasonStatsDashboard history={history} />
         )}
         </div>
     );
+  };
+
+  // Helper to render individual history cards (refactored from previous ListView)
+  const renderHistoryCard = (record) => {
+      if (record.type === 'bedtime') {
+        return (
+            <div key={record.id} onClick={() => setViewingRecord(record)} className="border-2 border-slate-700 p-4 relative cursor-pointer hover:-translate-y-1 bg-slate-900 text-slate-200 group mb-4">
+                <div className="flex justify-between items-center mb-3">
+                    <div className="flex items-center gap-2">
+                        <span className="bg-indigo-600 text-white px-2 py-1 text-xs font-bold font-mono">{record.dateDisplay}</span>
+                        <span className="text-xs font-bold text-indigo-300 bg-slate-800 px-2 py-1 rounded flex items-center gap-1">
+                            <Clock size={10} /> {new Date(record.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </span>
+                    </div>
+                    <button onClick={(e) => handleDeleteClick(e, record.id)} className="text-slate-500 hover:text-red-500"><Trash2 size={20} /></button>
+                </div>
+                <div className="flex items-center gap-2 text-sm font-bold text-white">
+                    <span>{renderIcon(record.mood?.icon)} {record.mood?.label}</span>
+                </div>
+            </div>
+        )
+    }
+    if (record.isWorkSession) {
+        return (
+            <div key={record.id} onClick={() => setViewingRecord(record)} className="border-4 border-black p-5 relative cursor-pointer hover:-translate-y-1 hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all bg-amber-50 group mb-4">
+                <div className="flex justify-between items-start mb-4 border-b-2 border-amber-200 pb-2">
+                    <div className="flex items-center gap-2">
+                        <span className="bg-black text-white px-2 py-1 text-xs font-bold font-mono">{record.dateDisplay}</span>
+                        <span className="text-xs font-bold text-amber-800 bg-amber-100 px-2 py-1 rounded flex items-center gap-1">
+                            <Clock size={10} /> {new Date(record.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </span>
+                    </div>
+                    <button onClick={(e) => handleDeleteClick(e, record.id)} className="text-gray-400 hover:text-red-500 transition-colors p-1"><Trash2 size={16} /></button>
+                </div>
+                <div className="flex flex-col gap-2">
+                    <div className="flex justify-between items-end">
+                        <span className="font-black text-xl leading-tight text-black break-words flex-1 pr-4">{record.workTopic || "Deep Work"}</span>
+                        <div className="text-right shrink-0">
+                            <span className="text-3xl font-black font-mono text-orange-600 leading-none block">{record.workDuration}</span>
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">MINUTES</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+    // MORNING ROUTINE SUMMARY CARD
+    return (
+        <div key={record.id} onClick={() => setViewingRecord(record)} className="border-4 border-black p-4 relative cursor-pointer hover:-translate-y-1 hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all bg-white group mb-3">
+            {/* Date Header */}
+            <div className="flex justify-between items-center mb-3 border-b-2 border-gray-100 pb-2">
+                <div className="flex items-center gap-2">
+                    <span className="bg-black text-white px-2 py-1 text-xs font-bold font-mono">{record.dateDisplay}</span>
+                    <span className="text-xs font-black text-gray-500 bg-gray-100 px-2 py-1 rounded flex items-center gap-1">
+                        <Sun size={10} /> {record.actualWakeUpTime || "N/A"}
+                    </span>
+                </div>
+                <button onClick={(e) => handleDeleteClick(e, record.id)} className="text-gray-300 hover:text-red-500 transition-colors p-1"><Trash2 size={16} /></button>
+            </div>
+            
+            {/* Indicators Grid */}
+            <div className="grid grid-cols-4 gap-2">
+                {/* Mood - Modified to show completion colors (Purple for standard to distinct from Green Exercise) */}
+                <div className={`flex flex-col items-center justify-center p-2 rounded border-2 ${
+                    record.mood 
+                        ? (record.mood.level >= 5 ? 'border-orange-500 bg-orange-50 text-orange-600' 
+                          : record.mood.level >= 3 ? 'border-purple-500 bg-purple-50 text-purple-600' 
+                          : 'border-slate-500 bg-slate-100 text-slate-600')
+                        : 'border-dashed border-gray-200 opacity-30 text-gray-300'
+                }`}>
+                    <div className="text-xl mb-1">{record.mood?.level >= 5 ? "🔥" : record.mood?.level >= 3 ? "⚡" : record.mood?.level === 1 ? "💤" : "😶"}</div>
+                    <span className="text-[9px] font-black uppercase text-current">MOOD</span>
+                </div>
+
+                {/* Exercise */}
+                <div className={`flex flex-col items-center justify-center p-2 rounded border-2 ${record.exercise ? 'border-emerald-500 bg-emerald-50 text-emerald-600' : 'border-gray-200 text-gray-300 bg-gray-50 opacity-50'}`}>
+                    <Dumbbell size={20} className={record.exercise ? "fill-current" : ""} />
+                    <span className="text-[9px] font-black uppercase mt-1">BODY</span>
+                </div>
+
+                {/* English */}
+                <div className={`flex flex-col items-center justify-center p-2 rounded border-2 ${record.english && record.english.length > 0 ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 text-gray-300 bg-gray-50 opacity-50'}`}>
+                    <Mic size={20} className={record.english && record.english.length > 0 ? "fill-current" : ""} />
+                    <span className="text-[9px] font-black uppercase mt-1">LANG</span>
+                </div>
+
+                {/* Reading */}
+                <div className={`flex flex-col items-center justify-center p-2 rounded border-2 ${record.readingPages > 0 ? 'border-orange-500 bg-orange-50 text-orange-600' : 'border-gray-200 text-gray-300 bg-gray-50 opacity-50'}`}>
+                    <BookOpen size={20} className={record.readingPages > 0 ? "fill-current" : ""} />
+                    <span className="text-[9px] font-black uppercase mt-1">READ</span>
+                </div>
+            </div>
+            {/* Optional: Show "Completed" text or arrow to indicate clickable */}
+            <div className="text-center mt-2">
+                 <span className="text-[10px] font-bold text-gray-300 group-hover:text-orange-500 transition-colors">▼ CHECK DETAILS</span>
+            </div>
+        </div>
+        )
   };
 
   // Re-include all render views from V13
@@ -1307,8 +1605,8 @@ export default function MorningStrategistV17() {
 
   const renderMoodCheckView = () => {
     if (mood) {
-      let colorClass = mood.level === 1 ? "text-slate-500" : mood.level === 3 ? "text-emerald-500" : "text-orange-500";
-      let barColorClass = mood.level === 1 ? "bg-slate-500" : mood.level === 3 ? "bg-emerald-500" : "bg-orange-500";
+      let colorClass = mood.level === 1 ? "text-slate-500" : mood.level === 3 ? "text-purple-500" : "text-orange-500";
+      let barColorClass = mood.level === 1 ? "bg-slate-500" : mood.level === 3 ? "bg-purple-500" : "bg-orange-500";
       return (
         <div className="p-4 sm:p-6 pb-24 flex flex-col h-full justify-center items-center animate-fade-in">
           <div className="w-full max-w-xs border-8 border-black bg-white p-6 shadow-[8px_8px_0px_0px_rgba(249,115,22,1)] text-center transform rotate-1">
@@ -1330,7 +1628,7 @@ export default function MorningStrategistV17() {
           ) : (<div className="animate-fade-in flex flex-col items-center"><p className="text-blue-900 font-black italic text-lg">狀態回復！大腦開機中...</p></div>)}
         </div>
         <div className={`flex flex-col gap-4 transition-opacity duration-300 ${!isWaterDrank ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
-          {[{ level: 1, label: "狀態不佳 (省電)", color: "slate" }, { level: 3, label: "普通 (標準)", color: "emerald" }, { level: 5, label: "絕好調 (超頻!)", color: "orange" }].map(m => (
+          {[{ level: 1, label: "狀態不佳 (省電)", color: "slate" }, { level: 3, label: "普通 (標準)", color: "purple" }, { level: 5, label: "絕好調 (超頻!)", color: "orange" }].map(m => (
               <button key={m.level} onClick={() => handleMoodSelection(m)} className={`p-4 border-4 border-${m.color}-600 bg-${m.color}-500 text-white font-black italic text-lg text-left hover:translate-x-1 transition-transform shadow-md`}>{m.label}</button>
           ))}
         </div>
@@ -1558,7 +1856,18 @@ export default function MorningStrategistV17() {
         {errorMsg && (<div className="absolute top-0 left-0 w-full bg-red-600 text-white text-center text-xs font-bold py-2 z-[60] animate-fade-in flex items-center justify-center gap-2 shadow-lg cursor-pointer" onClick={() => setErrorMsg(null)}><AlertCircle size={14} /> {errorMsg} <X size={14} /></div>)}
         {isRestoredSession && (<div className="absolute top-16 left-0 w-full bg-green-500 text-white text-center text-xs font-bold py-1 z-50 animate-fade-in flex items-center justify-center gap-2"><CloudLightning size={14} className="fill-current" /> 已自動恢復進度</div>)}
         {phase !== 'loading' && phase !== 'finished' && phase !== 'sleeping' && phase !== 'history' && phase !== 'bedtime' && phase !== 'work-mode' && (
-          <div className="h-16 shrink-0 bg-black border-b-4 border-orange-500 flex items-center justify-between px-4 sm:px-6 relative z-50 shadow-[0px_4px_0px_0px_rgba(249,115,22,1)]"><div className="flex items-center gap-3"><span className="font-black italic text-2xl text-white tracking-tighter uppercase transform -skew-x-12">M<span className="text-orange-500">.STRAT</span></span><div className={`transition-all duration-300 overflow-hidden ${isLocalSaved ? 'w-16 opacity-100' : 'w-0 opacity-0'}`}><div className="bg-green-500 text-white text-[10px] font-black uppercase px-2 py-1 whitespace-nowrap flex items-center gap-1 rounded transform skew-x-[-12deg]"><Save size={10} /> 已存檔</div></div></div><div className="flex items-center gap-2 bg-white border-2 border-black px-2 py-1 transform skew-x-[-12deg]"><span className="text-xs font-black text-black skew-x-[12deg]">{wakeUpTime} 開始</span></div></div>
+          <div className="h-16 shrink-0 bg-black border-b-4 border-orange-500 flex items-center justify-between px-4 sm:px-6 relative z-50 shadow-[0px_4px_0px_0px_rgba(249,115,22,1)]">
+            <div className="flex items-center gap-3">
+                {/* MODIFIED: Make Logo Clickable to go HOME */}
+                <button onClick={() => setPhase('sleeping')} className="font-black italic text-2xl text-white tracking-tighter uppercase transform -skew-x-12 hover:text-gray-300 transition-colors">
+                    M<span className="text-orange-500">.STRAT</span>
+                </button>
+                <div className={`transition-all duration-300 overflow-hidden ${isLocalSaved ? 'w-16 opacity-100' : 'w-0 opacity-0'}`}>
+                    <div className="bg-green-500 text-white text-[10px] font-black uppercase px-2 py-1 whitespace-nowrap flex items-center gap-1 rounded transform skew-x-[-12deg]"><Save size={10} /> 已存檔</div>
+                </div>
+            </div>
+            <div className="flex items-center gap-2 bg-white border-2 border-black px-2 py-1 transform skew-x-[-12deg]"><span className="text-xs font-black text-black skew-x-[12deg]">{wakeUpTime} 開始</span></div>
+          </div>
         )}
         <div ref={contentRef} className="flex-1 overflow-y-auto overflow-x-hidden bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px]">
           {phase === 'loading' && (<div className="flex flex-col items-center justify-center h-full bg-black"><Loader2 size={48} className="text-orange-500 animate-spin mb-4" /><p className="text-white font-black italic uppercase tracking-wider">載入中...</p></div>)}
@@ -1566,6 +1875,14 @@ export default function MorningStrategistV17() {
             <div className="min-h-full flex flex-col items-center justify-center p-6 bg-black relative transition-colors duration-1000">
               <div className="absolute inset-0 flex flex-col pointer-events-none opacity-20 select-none overflow-hidden leading-none font-black italic text-8xl text-white text-left whitespace-nowrap"><span>{isNightMode ? "REST UP" : "WAKE UP"}</span><span className="ml-20">FLY HIGH</span><span>DON'T STOP</span></div>
               <div className="absolute top-4 right-4 z-20"><button onClick={() => setPhase('history')} className="flex items-center gap-2 text-white/50 hover:text-orange-500 font-bold text-sm uppercase tracking-wider transition-colors"><History size={16} /> 歷史紀錄</button></div>
+              
+              {/* --- NEW: MANUAL RESET BUTTON --- */}
+              <div className="absolute top-4 left-4 z-20">
+                <button onClick={handleManualReset} className="flex items-center gap-2 text-white/30 hover:text-red-500 font-bold text-sm uppercase tracking-wider transition-colors">
+                  <RotateCcw size={16} /> 重置 (RESET)
+                </button>
+              </div>
+              
               <div className="relative z-10 flex flex-col items-center space-y-6 w-full py-8">
                 <div className="animate-bounce">{isNightMode ? (<Moon size={80} className="text-indigo-400 fill-indigo-400 transform -rotate-12 drop-shadow-[0px_0px_20px_rgba(79,70,229,0.5)]" />) : (<Sun size={80} className="text-orange-500 fill-orange-500 transform rotate-12 drop-shadow-[4px_4px_0px_rgba(255,255,255,1)]" />)}</div>
                 <h1 className="text-5xl sm:text-6xl font-black italic text-white uppercase tracking-tighter transform -skew-x-6 leading-none drop-shadow-[4px_4px_0px_rgba(249,115,22,1)] text-center">{greeting},<br /><span className={`${isNightMode ? 'text-indigo-400' : 'text-orange-500'} text-6xl sm:text-7xl`}>{user && !user.isAnonymous ? (user.displayName || "LUCAS").split(' ')[0].toUpperCase() : "LUCAS"}.</span></h1>
