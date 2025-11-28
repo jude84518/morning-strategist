@@ -95,7 +95,8 @@ const db = getFirestore(app);
 
 // Fixed App ID for persistence
 const appId = "morning-strategist-lucas-persistent"; 
-const LOCAL_STORAGE_KEY = "morning-strategist-lucas-state-v17-mood-fix"; // Bump version for mood fix
+const LOCAL_STORAGE_KEY = "morning-strategist-lucas-state-v17-mood-fix"; // Session state
+const RESET_STATE_KEY = "morning-strategist-daily-reset"; // New: Persistent Reset Flag
 
 // --- DATABASE ---
 const QUOTE_DATABASE = [
@@ -345,6 +346,25 @@ const DeleteConfirmModal = ({ onConfirm, onCancel, isDeleting }) => (
   </div>
 );
 
+// --- Timeline Section Component (Extracted) ---
+const TimelineSection = ({ title, color, icon: Icon, children, isLast }) => (
+    <div className="relative pl-8 pb-8">
+        {/* Timeline Line */}
+        {!isLast && <div className="absolute top-8 left-3.5 bottom-0 w-1 bg-gray-200"></div>}
+        {/* Timeline Dot */}
+        <div className={`absolute top-0 left-0 w-8 h-8 rounded-full border-4 border-white ${color} flex items-center justify-center shadow-md z-10`}>
+            <Icon size={14} className="text-white fill-current" />
+        </div>
+        {/* Content */}
+        <div className="bg-white border-2 border-gray-100 p-4 shadow-sm relative top-1">
+            <h4 className="font-black text-sm uppercase tracking-wider mb-3 flex items-center gap-2 border-b border-gray-100 pb-2">
+                {title}
+            </h4>
+            {children}
+        </div>
+    </div>
+);
+
 const SeasonStatsDashboard = ({ history }) => {
   if (!history || history.length === 0) return null;
 
@@ -575,7 +595,7 @@ const ScoreCard = ({ record, onClose }) => {
                         <div className="space-y-2">
                              {record.checklist?.map(item => (
                                  <div key={item.id} className="flex items-center gap-2 text-sm">
-                                      <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${item.checked ? 'bg-indigo-500 border-transparent' : 'border-slate-600'}`}>
+                                      <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${item.checked ? 'bg-indigo-500 border-indigo-500' : 'border-slate-300'}`}>
                                            {item.checked && <Check size={10} className="text-white" />}
                                       </div>
                                       <span className={item.checked ? 'text-indigo-200 font-bold' : 'text-slate-500'}>{item.text}</span>
@@ -799,6 +819,61 @@ export default function MorningStrategistV17() {
   const [viewingRecord, setViewingRecord] = useState(null);
   const [recordToDelete, setRecordToDelete] = useState(null);
 
+  // --- Logic Fix for Late Night Sessions ---
+  // Helper to get logical date (if < 5AM, counts as previous day)
+  const getAdjustedDate = () => {
+    const now = new Date();
+    // If between 00:00 and 04:59, treat as previous day
+    if (now.getHours() < 5) {
+        now.setDate(now.getDate() - 1);
+    }
+    return now.toLocaleDateString('zh-TW');
+  };
+
+  // --- Streak Calculation Logic ---
+  const currentStreak = useMemo(() => {
+    if (!history || history.length === 0) return 0;
+    
+    // Filter morning routine records
+    const morningRituals = history.filter(r => r.isMorningRoutine);
+    const validDates = new Set();
+    
+    morningRituals.forEach(r => {
+        // Core criteria for streak: Mood recorded & Water drank
+        if (r.mood && r.waterDrank) validDates.add(r.dateDisplay);
+    });
+    
+    // Sort dates descending
+    const sortedDates = Array.from(validDates).sort((a, b) => new Date(b) - new Date(a));
+    if (sortedDates.length === 0) return 0;
+
+    const today = new Date().toLocaleDateString('zh-TW');
+    const yesterdayDate = new Date();
+    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+    const yesterday = yesterdayDate.toLocaleDateString('zh-TW');
+
+    // If latest record is not today or yesterday, streak is broken
+    if (sortedDates[0] !== today && sortedDates[0] !== yesterday) return 0;
+
+    let streak = 1;
+    // Calculate consecutive days
+    for (let i = 0; i < sortedDates.length - 1; i++) {
+        const d1 = new Date(sortedDates[i]);
+        const d2 = new Date(sortedDates[i+1]);
+        
+        // Create expected previous date for comparison
+        const expectedPrev = new Date(d1);
+        expectedPrev.setDate(d1.getDate() - 1);
+        
+        if (expectedPrev.toLocaleDateString('zh-TW') === d2.toLocaleDateString('zh-TW')) {
+            streak++;
+        } else {
+            break;
+        }
+    }
+    return streak;
+  }, [history]);
+
   // FIX: MOVE useMemo to top level to prevent hook order error
   const displayedHistory = useMemo(() => {
       // If viewing a specific date in calendar mode, filter by that date
@@ -907,7 +982,19 @@ export default function MorningStrategistV17() {
         }
     } catch(e) {}
 
-    if (morningHistory.length > 0 && !hasManualReset && (phase === 'sleeping' || phase === 'loading')) {
+    // NEW: Check persistent reset flag
+    let persistentReset = false;
+    try {
+        const resetData = JSON.parse(localStorage.getItem(RESET_STATE_KEY));
+        const today = new Date().toLocaleDateString('zh-TW');
+        if (resetData && resetData.date === today && resetData.reset) {
+            persistentReset = true;
+        }
+    } catch(e) {}
+
+    const effectiveReset = hasManualReset || persistentReset;
+
+    if (morningHistory.length > 0 && !effectiveReset && (phase === 'sleeping' || phase === 'loading')) {
       const latest = morningHistory[0];
       const today = new Date().toLocaleDateString('zh-TW');
       if (latest.dateDisplay === today && !hasActiveLocalSession && !latest.isWorkSession) {
@@ -1074,7 +1161,8 @@ export default function MorningStrategistV17() {
     try {
       const uid = await ensureAuthenticated();
       const cleanChecklist = bedtimeChecklist.map(item => ({ id: item.id, text: item.text, checked: item.checked }));
-      const record = { type: 'bedtime', checklist: cleanChecklist, note: bedtimeNote, mood: bedtimeMood, dateDisplay: new Date().toLocaleDateString('zh-TW'), createdAt: serverTimestamp(), timestamp: Date.now() };
+      // FIX: Use getAdjustedDate() instead of new Date().toLocaleDateString()
+      const record = { type: 'bedtime', checklist: cleanChecklist, note: bedtimeNote, mood: bedtimeMood, dateDisplay: getAdjustedDate(), createdAt: serverTimestamp(), timestamp: Date.now() };
       await addDoc(collection(db, 'artifacts', appId, 'users', uid, 'bedtime_sessions'), record);
       setTimeout(() => { setIsBedtimeSaving(false); setPhase('sleeping'); if (contentRef.current) contentRef.current.scrollTop = 0; }, 1500);
     } catch (e) { console.error("Bedtime save failed:", e); setErrorMsg(`存檔失敗: ${e.message}`); setIsBedtimeSaving(false); }
@@ -1122,6 +1210,7 @@ export default function MorningStrategistV17() {
     try {
         const uid = await ensureAuthenticated();
         const actualDuration = isSkipped ? 0 : (totalDuration > 0 ? Math.max(0, Math.ceil((totalDuration - timeLeft) / 60)) : 0);
+        // Morning Routine usually happens after waking up, so new Date() is correct.
         const record = { isMorningRoutine: true, wakeUpTarget: wakeUpTime, actualWakeUpTime: actualWakeUpTime || "N/A", mood: mood, waterDrank: isWaterDrank, exercise: selectedExercise, exerciseSets: setsCompleted, english: selectedEnglishApps, englishTopic: englishTopic, readingPages: parseInt(actualPagesRead) || 0, readingDuration: actualDuration, readingBook: readingBook, dateDisplay: new Date().toLocaleDateString('zh-TW'), createdAt: serverTimestamp(), timestamp: Date.now() };
         await addDoc(collection(db, 'artifacts', appId, 'users', uid, 'morning_sessions'), record);
         setPhase('finished');
@@ -1133,7 +1222,8 @@ export default function MorningStrategistV17() {
       const actualDuration = totalDuration > 0 ? Math.max(0, Math.ceil((totalDuration - timeLeft) / 60)) : 0;
       try {
          const uid = await ensureAuthenticated();
-         const record = { isWorkSession: true, workTopic: workTopic, workDuration: actualDuration, dateDisplay: new Date().toLocaleDateString('zh-TW'), createdAt: serverTimestamp(), timestamp: Date.now() };
+         // FIX: Use getAdjustedDate() for Work Sessions too
+         const record = { isWorkSession: true, workTopic: workTopic, workDuration: actualDuration, dateDisplay: getAdjustedDate(), createdAt: serverTimestamp(), timestamp: Date.now() };
          await addDoc(collection(db, 'artifacts', appId, 'users', uid, 'morning_sessions'), record);
          clearLocalProgress(); setPhase('history');
       } catch(e) { setErrorMsg("存檔失敗: " + e.message); } finally { setIsSaving(false); setIsActive(false); }
@@ -1169,7 +1259,16 @@ export default function MorningStrategistV17() {
     // Clear Storage
     clearLocalProgress();
     
+    // NEW: Save persistent reset flag
+    try {
+        localStorage.setItem(RESET_STATE_KEY, JSON.stringify({
+            date: new Date().toLocaleDateString('zh-TW'),
+            reset: true
+        }));
+    } catch(e) {}
+    
     // Feedback
+    setPhase('sleeping'); // Explicitly go to home
     SoundEngine.playError(); // Using the error sound as a "deletion" sound effect
     setErrorMsg("系統已重置 (SYSTEM RESET)");
     setTimeout(() => setErrorMsg(null), 1500);
@@ -1192,25 +1291,6 @@ export default function MorningStrategistV17() {
               </div>
           );
       }
-
-      // 2. Helper Components for Timeline Items
-      const TimelineSection = ({ title, color, icon: Icon, children, isLast }) => (
-          <div className="relative pl-8 pb-8">
-              {/* Timeline Line */}
-              {!isLast && <div className="absolute top-8 left-3.5 bottom-0 w-1 bg-gray-200"></div>}
-              {/* Timeline Dot */}
-              <div className={`absolute top-0 left-0 w-8 h-8 rounded-full border-4 border-white ${color} flex items-center justify-center shadow-md z-10`}>
-                  <Icon size={14} className="text-white fill-current" />
-              </div>
-              {/* Content */}
-              <div className="bg-white border-2 border-gray-100 p-4 shadow-sm relative top-1">
-                  <h4 className="font-black text-sm uppercase tracking-wider mb-3 flex items-center gap-2 border-b border-gray-100 pb-2">
-                      {title}
-                  </h4>
-                  {children}
-              </div>
-          </div>
-      );
 
       return (
           <div className="py-4">
@@ -1733,7 +1813,7 @@ export default function MorningStrategistV17() {
     const finalDuration = totalDuration > 0 ? Math.max(0, Math.ceil((totalDuration - timeLeft) / 60)) : 0;
     const displayData = { readingPages: actualPagesRead || 0, readingTime: finalDuration };
     
-    // Calculate Today's Work Stats
+    // --- RESTORED: Calculate Today's Work Stats ---
     const todayStr = new Date().toLocaleDateString('zh-TW');
     const todayWork = history.filter(r => r.isWorkSession && r.dateDisplay === todayStr);
     const totalWorkMinutes = todayWork.reduce((acc, curr) => acc + (curr.workDuration || 0), 0);
@@ -1845,7 +1925,8 @@ export default function MorningStrategistV17() {
           </div>
         </div>
         <div className="bg-gray-100 border-4 border-black p-4 w-full relative z-10 transform -rotate-1 mb-6"><p className="text-sm text-gray-500 font-black uppercase mb-1 flex items-center gap-1"><MessageSquare size={14} /> 教練的叮嚀</p><p className="text-base text-black font-bold leading-tight">「{restQuote.text}」</p><p className="text-xs text-gray-400 text-right mt-1 font-black italic">— {restQuote.char}</p></div>
-        <div className="flex gap-3 mt-auto"><button onClick={() => setPhase('history')} className="flex-1 py-4 border-4 border-black bg-white hover:bg-gray-100 font-black uppercase flex items-center justify-center gap-2 text-sm"><History size={18} /> 歷史紀錄</button><button onClick={() => { setHasManualReset(true); setPhase('sleeping'); setReadingStep('setup'); setIsActive(false); setActualPagesRead(0); setRestQuote(REST_QUOTES[Math.floor(Math.random() * REST_QUOTES.length)]); setIsWaterDrank(false); setSetsCompleted(0); setCurrentSet(1); setActualWakeUpTime(null); setMood(null); }} className="flex-1 py-4 bg-black text-white font-black uppercase hover:bg-orange-500 transition-colors text-sm flex items-center justify-center gap-2"><RotateCcw size={18} /> 重置 (RESET)</button></div>
+        {/* UPDATED: Changed from inline onClick to use handleManualReset */}
+        <div className="flex gap-3 mt-auto"><button onClick={() => setPhase('history')} className="flex-1 py-4 border-4 border-black bg-white hover:bg-gray-100 font-black uppercase flex items-center justify-center gap-2 text-sm"><History size={18} /> 歷史紀錄</button><button onClick={handleManualReset} className="flex-1 py-4 bg-black text-white font-black uppercase hover:bg-orange-500 transition-colors text-sm flex items-center justify-center gap-2"><RotateCcw size={18} /> 重置 (RESET)</button></div>
       </div>
     );
   };
@@ -1884,7 +1965,19 @@ export default function MorningStrategistV17() {
               </div>
               
               <div className="relative z-10 flex flex-col items-center space-y-6 w-full py-8">
-                <div className="animate-bounce">{isNightMode ? (<Moon size={80} className="text-indigo-400 fill-indigo-400 transform -rotate-12 drop-shadow-[0px_0px_20px_rgba(79,70,229,0.5)]" />) : (<Sun size={80} className="text-orange-500 fill-orange-500 transform rotate-12 drop-shadow-[4px_4px_0px_rgba(255,255,255,1)]" />)}</div>
+                <div className="animate-bounce relative">
+                    {/* Main Icon */}
+                    {isNightMode ? (<Moon size={80} className="text-indigo-400 fill-indigo-400 transform -rotate-12 drop-shadow-[0px_0px_20px_rgba(79,70,229,0.5)]" />) : (<Sun size={80} className="text-orange-500 fill-orange-500 transform rotate-12 drop-shadow-[4px_4px_0px_rgba(255,255,255,1)]" />)}
+                    
+                    {/* --- STREAK BADGE (Floating) --- */}
+                    {/* FIXED: Changed from '-right-2' to 'left-16' to ensure badge grows to the RIGHT, avoiding overlap with icon as digits increase */}
+                    {currentStreak > 0 && (
+                        <div className="absolute left-16 -bottom-2 bg-orange-500 text-white text-xs font-black px-2 py-0.5 border-2 border-black transform rotate-12 shadow-[2px_2px_0px_0px_white] flex items-center gap-1 z-20 animate-pulse whitespace-nowrap">
+                            <Flame size={12} className="fill-current" /> {currentStreak}
+                        </div>
+                    )}
+                </div>
+
                 <h1 className="text-5xl sm:text-6xl font-black italic text-white uppercase tracking-tighter transform -skew-x-6 leading-none drop-shadow-[4px_4px_0px_rgba(249,115,22,1)] text-center">{greeting},<br /><span className={`${isNightMode ? 'text-indigo-400' : 'text-orange-500'} text-6xl sm:text-7xl`}>{user && !user.isAnonymous ? (user.displayName || "LUCAS").split(' ')[0].toUpperCase() : "LUCAS"}.</span></h1>
                 {!user || user.isAnonymous ? (<div className="w-full max-w-xs transform -rotate-1"><PowerButton variant="google" onClick={handleGoogleLogin} loading={isAuthLoading} className="py-2 text-sm border-2">使用 Google 帳號登入 (同步)</PowerButton></div>) : null}
                 <div className={`w-full max-w-xs ${isNightMode ? 'bg-slate-900 border-slate-700 shadow-[6px_6px_0px_0px_rgba(79,70,229,1)]' : 'bg-white border-black shadow-[6px_6px_0px_0px_rgba(249,115,22,1)]'} border-4 p-4 transform rotate-1 transition-all duration-500`}><div className={`flex justify-between items-center mb-2 border-b-2 ${isNightMode ? 'border-slate-700' : 'border-gray-200'} pb-1`}><p className={`${isNightMode ? 'text-indigo-400' : 'text-orange-500'} text-[10px] font-black uppercase tracking-widest`}>每日一句</p><Sparkles size={12} className={isNightMode ? 'text-indigo-400' : 'text-orange-500'} /></div><p className={`${isNightMode ? 'text-slate-200' : 'text-black'} font-bold text-sm leading-relaxed mb-2`}>"{todayQuote.text}"</p><div className="text-right"><p className="text-xs font-black italic text-gray-500">— {todayQuote.char}</p></div></div>
