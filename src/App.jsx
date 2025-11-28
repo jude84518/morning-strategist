@@ -721,7 +721,7 @@ const ScoreCard = ({ record, onClose }) => {
                     {record.readingPages || 0} <span className="text-sm text-black">頁</span>
                 </span>
                 {record.readingBook && (
-                   <div className="text-xs font-bold text-orange-800 mt-1 truncate max-w-[150px]">
+                   <div className="text-sm font-bold text-orange-800 mt-1 truncate max-w-[150px]">
                        📖 {record.readingBook}
                    </div>
                 )}
@@ -820,10 +820,12 @@ export default function MorningStrategistV17() {
   const [recordToDelete, setRecordToDelete] = useState(null);
 
   // --- Logic Fix for Late Night Sessions ---
-  // Helper to get logical date (if < 5AM, counts as previous day)
+  // Helper to get logical date for daily records. 
+  // If a session ( like Bedtime or Deep Work session ) is recorded between 00:00 and 04:59, 
+  // it is logically attributed to the *previous* calendar day.
   const getAdjustedDate = () => {
     const now = new Date();
-    // If between 00:00 and 04:59, treat as previous day
+    // 如果時間在 00:00 到 04:59 之間，視為前一天
     if (now.getHours() < 5) {
         now.setDate(now.getDate() - 1);
     }
@@ -1162,6 +1164,7 @@ export default function MorningStrategistV17() {
       const uid = await ensureAuthenticated();
       const cleanChecklist = bedtimeChecklist.map(item => ({ id: item.id, text: item.text, checked: item.checked }));
       // FIX: Use getAdjustedDate() instead of new Date().toLocaleDateString()
+      // 此處已使用 getAdjustedDate() 確保凌晨紀錄會歸類到前一天
       const record = { type: 'bedtime', checklist: cleanChecklist, note: bedtimeNote, mood: bedtimeMood, dateDisplay: getAdjustedDate(), createdAt: serverTimestamp(), timestamp: Date.now() };
       await addDoc(collection(db, 'artifacts', appId, 'users', uid, 'bedtime_sessions'), record);
       setTimeout(() => { setIsBedtimeSaving(false); setPhase('sleeping'); if (contentRef.current) contentRef.current.scrollTop = 0; }, 1500);
@@ -1223,6 +1226,7 @@ export default function MorningStrategistV17() {
       try {
          const uid = await ensureAuthenticated();
          // FIX: Use getAdjustedDate() for Work Sessions too
+         // 此處已使用 getAdjustedDate() 確保凌晨紀錄會歸類到前一天
          const record = { isWorkSession: true, workTopic: workTopic, workDuration: actualDuration, dateDisplay: getAdjustedDate(), createdAt: serverTimestamp(), timestamp: Date.now() };
          await addDoc(collection(db, 'artifacts', appId, 'users', uid, 'morning_sessions'), record);
          clearLocalProgress(); setPhase('history');
@@ -1692,7 +1696,7 @@ export default function MorningStrategistV17() {
           <div className="w-full max-w-xs border-8 border-black bg-white p-6 shadow-[8px_8px_0px_0px_rgba(249,115,22,1)] text-center transform rotate-1">
             <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2">SYSTEM ANALYSIS</p>
             <h3 className={`text-3xl font-black italic ${colorClass} mb-1 animate-pulse`}>{moodSyncRate}</h3>
-            <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden mb-6"><div className={`h-full ${barColorClass} w-full animate-slide-stripes`}></div></div>
+            <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden"><div className={`h-full ${barColorClass} w-full animate-slide-stripes`}></div></div>
             <p className="text-black font-bold text-lg leading-tight mb-8">"{moodFeedback}"</p>
             <PowerButton variant="success" onClick={confirmMoodAndStart} className="w-full py-4 text-xl">前往熱身 <ArrowRight size={20} /></PowerButton>
           </div>
@@ -2057,3 +2061,4 @@ export default function MorningStrategistV17() {
     </div>
   );
 }
+
