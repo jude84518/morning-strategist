@@ -502,8 +502,8 @@ const SeasonStatsDashboard = ({ history }) => {
           </div>
         </div>
         <div className="text-center py-2">
-            <div className="text-4xl font-black text-black">{totalPages}</div>
-            <div className="text-[10px] font-bold text-gray-400 uppercase">累積閱讀頁數</div>
+          <div className="text-4xl font-black text-black">{totalPages}</div>
+          <div className="text-[10px] font-bold text-gray-400 uppercase">累積閱讀頁數</div>
         </div>
       </div>
 
@@ -530,7 +530,7 @@ const SeasonStatsDashboard = ({ history }) => {
       </div>
 
       {/* 6. Sleep */}
-       <div className="bg-slate-900 border-4 border-slate-700 p-4 shadow-sm relative overflow-hidden text-white">
+        <div className="bg-slate-900 border-4 border-slate-700 p-4 shadow-sm relative overflow-hidden text-white">
         <div className="flex justify-between items-center border-b-2 border-slate-700 pb-2 mb-3">
           <h4 className="font-black text-sm flex items-center gap-2 text-indigo-300">
             <Moon size={16} /> 睡眠儀式
@@ -558,7 +558,7 @@ const ScoreCard = ({ record, onClose }) => {
       if (typeof iconData === 'string') return iconData;
       // If it's an object, it might be a serialized React element which is unsafe
       // We return a fallback or nothing
-      return null; 
+      return null;  
   };
 
   // Helper for dynamic mood color in scorecard header
@@ -595,11 +595,11 @@ const ScoreCard = ({ record, onClose }) => {
                         <div className="space-y-2">
                              {record.checklist?.map(item => (
                                  <div key={item.id} className="flex items-center gap-2 text-sm">
-                                      <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${item.checked ? 'bg-indigo-500 border-indigo-500' : 'border-slate-300'}`}>
-                                           {item.checked && <Check size={10} className="text-white" />}
-                                      </div>
-                                      <span className={item.checked ? 'text-indigo-200 font-bold' : 'text-slate-500'}>{item.text}</span>
-                                 </div>
+                                     <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${item.checked ? 'bg-indigo-500 border-indigo-500' : 'border-slate-300'}`}>
+                                         {item.checked && <Check size={10} className="text-white" />}
+                                     </div>
+                                     <span className={item.checked ? 'text-indigo-200 font-bold' : 'text-slate-500'}>{item.text}</span>
+                                </div>
                              ))}
                         </div>
                     </div>
@@ -619,29 +619,29 @@ const ScoreCard = ({ record, onClose }) => {
       return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in" onClick={onClose}>
             <div className="w-full max-w-sm border-4 border-black bg-white relative animate-slide-up transform rotate-1">
-                 <button onClick={onClose} className="absolute -top-4 -right-4 bg-black text-white p-2 rounded-full border-2 border-white hover:bg-orange-500 transition-colors z-20">
-                    <X size={24} />
-                 </button>
-                 <div className="bg-black text-white p-3 border-b-4 border-black flex justify-between items-center sticky top-0 z-10">
-                    <span className="font-black italic uppercase">深度工作紀錄</span>
-                    <span className="text-xs font-mono text-orange-500">{record.dateDisplay}</span>
-                 </div>
-                 <div className="p-6">
-                     <div className="text-center mb-6">
-                        <div className="text-xs font-bold text-gray-500 uppercase mb-1">專注任務</div>
-                        <div className="text-2xl font-black text-black">{record.workTopic || "Deep Work"}</div>
-                     </div>
-                     <div className="flex justify-between border-t-2 border-gray-100 pt-4">
-                        <div>
-                            <div className="text-xs font-bold text-gray-500 uppercase">時長</div>
-                            <div className="text-xl font-black text-orange-600">{record.workDuration} 分鐘</div>
-                        </div>
-                        <div className="text-right">
-                             <div className="text-xs font-bold text-gray-500 uppercase">時間</div>
-                             <div className="text-sm font-bold">{new Date(record.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-                        </div>
-                     </div>
-                 </div>
+                <button onClick={onClose} className="absolute -top-4 -right-4 bg-black text-white p-2 rounded-full border-2 border-white hover:bg-orange-500 transition-colors z-20">
+                  <X size={24} />
+                </button>
+                <div className="bg-black text-white p-3 border-b-4 border-black flex justify-between items-center sticky top-0 z-10">
+                  <span className="font-black italic uppercase">深度工作紀錄</span>
+                  <span className="text-xs font-mono text-orange-500">{record.dateDisplay}</span>
+                </div>
+                <div className="p-6">
+                    <div className="text-center mb-6">
+                      <div className="text-xs font-bold text-gray-500 uppercase mb-1">專注任務</div>
+                      <div className="text-2xl font-black text-black">{record.workTopic || "Deep Work"}</div>
+                    </div>
+                    <div className="flex justify-between border-t-2 border-gray-100 pt-4">
+                      <div>
+                          <div className="text-xs font-bold text-gray-500 uppercase">時長</div>
+                          <div className="text-xl font-black text-orange-600">{record.workDuration} 分鐘</div>
+                      </div>
+                      <div className="text-right">
+                          <div className="text-xs font-bold text-gray-500 uppercase">時間</div>
+                          <div className="text-sm font-bold">{new Date(record.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                      </div>
+                    </div>
+                </div>
             </div>
         </div>
       )
@@ -722,15 +722,15 @@ const ScoreCard = ({ record, onClose }) => {
                 </span>
                 {record.readingBook && (
                    <div className="text-sm font-bold text-orange-800 mt-1 truncate max-w-[150px]">
-                       📖 {record.readingBook}
+                        📖 {record.readingBook}
                    </div>
                 )}
             </div>
             <div className="text-right relative z-10">
-                 <span className="font-black text-gray-400 uppercase text-xs block">專注時間</span>
-                 <span className="text-xl font-black font-mono text-gray-600">
+                <span className="font-black text-gray-400 uppercase text-xs block">專注時間</span>
+                <span className="text-xl font-black font-mono text-gray-600">
                     {record.readingDuration || record.workDuration || 0} <span className="text-xs">分鐘</span>
-                 </span>
+                </span>
             </div>
             <BookOpen className="absolute -right-4 -bottom-4 text-orange-100 w-24 h-24 transform rotate-12" />
           </div>
@@ -801,7 +801,7 @@ export default function MorningStrategistV17() {
   const [bedtimeNote, setBedtimeNote] = useState("");
   const [bedtimeMood, setBedtimeMood] = useState(null);
   const [isBedtimeSaving, setIsBedtimeSaving] = useState(false);
-  const [bedtimeShake, setBedtimeShake] = useState(false); 
+  const [bedtimeShake, setBedtimeShake] = useState(false);  
 
   // Timer & Set Logic
   const [timeLeft, setTimeLeft] = useState(0);
@@ -1098,7 +1098,7 @@ export default function MorningStrategistV17() {
       SoundEngine.playChime();
       if (phase === 'exercise') {
         if (currentSet < targetSets) { setCurrentSet(prev => prev + 1); setTimeLeft(selectedExercise.duration); }
-      } else if (phase === 'reading' && readingStep === 'focus') { setReadingStep('result'); } 
+      } else if (phase === 'reading' && readingStep === 'focus') { setReadingStep('result'); }  
       else if (phase === 'work-mode' && workStep === 'focus') { completeWorkSession(); }
     }
     return () => clearInterval(timerRef.current);
@@ -1183,8 +1183,8 @@ export default function MorningStrategistV17() {
       const collectionName = isBedtime ? 'bedtime_sessions' : 'morning_sessions';
       await deleteDoc(doc(db, 'artifacts', appId, 'users', uid, collectionName, recordToDelete));
       if (!isBedtime && record && record.dateDisplay === new Date().toLocaleDateString('zh-TW') && !record.isWorkSession) {
-           setHasManualReset(true); setMood(null); setActualWakeUpTime(null); setActualPagesRead(0); 
-           // FIX: Removed setPhase('sleeping') to keep user on history list
+          setHasManualReset(true); setMood(null); setActualWakeUpTime(null); setActualPagesRead(0); 
+          // FIX: Removed setPhase('sleeping') to keep user on history list
       }
     } catch (err) { setErrorMsg("刪除失敗"); } finally { setIsDeleting(false); setRecordToDelete(null); }
   };
@@ -1201,10 +1201,15 @@ export default function MorningStrategistV17() {
   const handleFinishExercise = () => { setSetsCompleted(currentSet); setPhase('english'); };
   const skipExercise = () => { setSelectedExercise(null); setIsActive(false); setSetsCompleted(0); setPhase('english'); };
   const toggleEnglishApp = (id) => { setSelectedEnglishApps(prev => { if (prev.includes(id)) return prev.filter(appId => appId !== id); return [...prev, id]; }); };
+  
+  // FIX: This function correctly moves to the next phase (reading)
   const skipEnglish = () => { setSelectedEnglishApps([]); setEnglishTopic(""); setPhase('reading'); };
+
   const finishEnglish = () => { setPhase('reading'); };
   const startReadingTimer = () => { setReadingStep('focus'); setTimeLeft(readingTime * 60); setTotalDuration(readingTime * 60); setIsActive(true); SoundEngine.init(); };
   const startWorkTimer = () => { setWorkStep('focus'); setTimeLeft(workDuration * 60); setTotalDuration(workDuration * 60); setIsActive(true); SoundEngine.init(); };
+  
+  // This function terminates the ritual and saves the data
   const skipReading = () => { setActualPagesRead(0); completeDay(true); };
 
   const completeDay = async (isSkipped = false) => {
@@ -1224,12 +1229,12 @@ export default function MorningStrategistV17() {
       setIsSaving(true); SoundEngine.playChime(); setErrorMsg(null);
       const actualDuration = totalDuration > 0 ? Math.max(0, Math.ceil((totalDuration - timeLeft) / 60)) : 0;
       try {
-         const uid = await ensureAuthenticated();
-         // FIX: Use getAdjustedDate() for Work Sessions too
-         // 此處已使用 getAdjustedDate() 確保凌晨紀錄會歸類到前一天
-         const record = { isWorkSession: true, workTopic: workTopic, workDuration: actualDuration, dateDisplay: getAdjustedDate(), createdAt: serverTimestamp(), timestamp: Date.now() };
-         await addDoc(collection(db, 'artifacts', appId, 'users', uid, 'morning_sessions'), record);
-         clearLocalProgress(); setPhase('history');
+           const uid = await ensureAuthenticated();
+           // FIX: Use getAdjustedDate() for Work Sessions too
+           // 此處已使用 getAdjustedDate() 確保凌晨紀錄會歸類到前一天
+           const record = { isWorkSession: true, workTopic: workTopic, workDuration: actualDuration, dateDisplay: getAdjustedDate(), createdAt: serverTimestamp(), timestamp: Date.now() };
+           await addDoc(collection(db, 'artifacts', appId, 'users', uid, 'morning_sessions'), record);
+           clearLocalProgress(); setPhase('history');
       } catch(e) { setErrorMsg("存檔失敗: " + e.message); } finally { setIsSaving(false); setIsActive(false); }
   };
 
@@ -1571,9 +1576,9 @@ export default function MorningStrategistV17() {
                 </div>
             </div>
         )
-    }
-    if (record.isWorkSession) {
-        return (
+      }
+      if (record.isWorkSession) {
+          return (
             <div key={record.id} onClick={() => setViewingRecord(record)} className="border-4 border-black p-5 relative cursor-pointer hover:-translate-y-1 hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all bg-amber-50 group mb-4">
                 <div className="flex justify-between items-start mb-4 border-b-2 border-amber-200 pb-2">
                     <div className="flex items-center gap-2">
@@ -1595,58 +1600,58 @@ export default function MorningStrategistV17() {
                 </div>
             </div>
         )
-    }
-    // MORNING ROUTINE SUMMARY CARD
-    return (
-        <div key={record.id} onClick={() => setViewingRecord(record)} className="border-4 border-black p-4 relative cursor-pointer hover:-translate-y-1 hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all bg-white group mb-3">
-            {/* Date Header */}
-            <div className="flex justify-between items-center mb-3 border-b-2 border-gray-100 pb-2">
-                <div className="flex items-center gap-2">
-                    <span className="bg-black text-white px-2 py-1 text-xs font-bold font-mono">{record.dateDisplay}</span>
-                    <span className="text-xs font-black text-gray-500 bg-gray-100 px-2 py-1 rounded flex items-center gap-1">
-                        <Sun size={10} /> {record.actualWakeUpTime || "N/A"}
-                    </span>
-                </div>
-                <button onClick={(e) => handleDeleteClick(e, record.id)} className="text-gray-300 hover:text-red-500 transition-colors p-1"><Trash2 size={16} /></button>
-            </div>
-            
-            {/* Indicators Grid */}
-            <div className="grid grid-cols-4 gap-2">
-                {/* Mood - Modified to show completion colors (Purple for standard to distinct from Green Exercise) */}
-                <div className={`flex flex-col items-center justify-center p-2 rounded border-2 ${
-                    record.mood 
-                        ? (record.mood.level >= 5 ? 'border-orange-500 bg-orange-50 text-orange-600' 
-                          : record.mood.level >= 3 ? 'border-purple-500 bg-purple-50 text-purple-600' 
-                          : 'border-slate-500 bg-slate-100 text-slate-600')
-                        : 'border-dashed border-gray-200 opacity-30 text-gray-300'
-                }`}>
-                    <div className="text-xl mb-1">{record.mood?.level >= 5 ? "🔥" : record.mood?.level >= 3 ? "⚡" : record.mood?.level === 1 ? "💤" : "😶"}</div>
-                    <span className="text-[9px] font-black uppercase text-current">MOOD</span>
-                </div>
+      }
+      // MORNING ROUTINE SUMMARY CARD
+      return (
+          <div key={record.id} onClick={() => setViewingRecord(record)} className="border-4 border-black p-4 relative cursor-pointer hover:-translate-y-1 hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all bg-white group mb-3">
+              {/* Date Header */}
+              <div className="flex justify-between items-center mb-3 border-b-2 border-gray-100 pb-2">
+                  <div className="flex items-center gap-2">
+                      <span className="bg-black text-white px-2 py-1 text-xs font-bold font-mono">{record.dateDisplay}</span>
+                      <span className="text-xs font-black text-gray-500 bg-gray-100 px-2 py-1 rounded flex items-center gap-1">
+                          <Sun size={10} /> {record.actualWakeUpTime || "N/A"}
+                      </span>
+                  </div>
+                  <button onClick={(e) => handleDeleteClick(e, record.id)} className="text-gray-300 hover:text-red-500 transition-colors p-1"><Trash2 size={16} /></button>
+              </div>
+              
+              {/* Indicators Grid */}
+              <div className="grid grid-cols-4 gap-2">
+                  {/* Mood - Modified to show completion colors (Purple for standard to distinct from Green Exercise) */}
+                  <div className={`flex flex-col items-center justify-center p-2 rounded border-2 ${
+                      record.mood 
+                          ? (record.mood.level >= 5 ? 'border-orange-500 bg-orange-50 text-orange-600' 
+                            : record.mood.level >= 3 ? 'border-purple-500 bg-purple-50 text-purple-600' 
+                            : 'border-slate-500 bg-slate-100 text-slate-600')
+                          : 'border-dashed border-gray-200 opacity-30 text-gray-300'
+                  }`}>
+                      <div className="text-xl mb-1">{record.mood?.level >= 5 ? "🔥" : record.mood?.level >= 3 ? "⚡" : record.mood?.level === 1 ? "💤" : "😶"}</div>
+                      <span className="text-[9px] font-black uppercase text-current">MOOD</span>
+                  </div>
 
-                {/* Exercise */}
-                <div className={`flex flex-col items-center justify-center p-2 rounded border-2 ${record.exercise ? 'border-emerald-500 bg-emerald-50 text-emerald-600' : 'border-gray-200 text-gray-300 bg-gray-50 opacity-50'}`}>
-                    <Dumbbell size={20} className={record.exercise ? "fill-current" : ""} />
-                    <span className="text-[9px] font-black uppercase mt-1">BODY</span>
-                </div>
+                  {/* Exercise */}
+                  <div className={`flex flex-col items-center justify-center p-2 rounded border-2 ${record.exercise ? 'border-emerald-500 bg-emerald-50 text-emerald-600' : 'border-gray-200 text-gray-300 bg-gray-50 opacity-50'}`}>
+                      <Dumbbell size={20} className={record.exercise ? "fill-current" : ""} />
+                      <span className="text-[9px] font-black uppercase mt-1">BODY</span>
+                  </div>
 
-                {/* English */}
-                <div className={`flex flex-col items-center justify-center p-2 rounded border-2 ${record.english && record.english.length > 0 ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 text-gray-300 bg-gray-50 opacity-50'}`}>
-                    <Mic size={20} className={record.english && record.english.length > 0 ? "fill-current" : ""} />
-                    <span className="text-[9px] font-black uppercase mt-1">LANG</span>
-                </div>
+                  {/* English */}
+                  <div className={`flex flex-col items-center justify-center p-2 rounded border-2 ${record.english && record.english.length > 0 ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 text-gray-300 bg-gray-50 opacity-50'}`}>
+                      <Mic size={20} className={record.english && record.english.length > 0 ? "fill-current" : ""} />
+                      <span className="text-[9px] font-black uppercase mt-1">LANG</span>
+                  </div>
 
-                {/* Reading */}
-                <div className={`flex flex-col items-center justify-center p-2 rounded border-2 ${record.readingPages > 0 ? 'border-orange-500 bg-orange-50 text-orange-600' : 'border-gray-200 text-gray-300 bg-gray-50 opacity-50'}`}>
-                    <BookOpen size={20} className={record.readingPages > 0 ? "fill-current" : ""} />
-                    <span className="text-[9px] font-black uppercase mt-1">READ</span>
-                </div>
-            </div>
-            {/* Optional: Show "Completed" text or arrow to indicate clickable */}
-            <div className="text-center mt-2">
-                 <span className="text-[10px] font-bold text-gray-300 group-hover:text-orange-500 transition-colors">▼ CHECK DETAILS</span>
-            </div>
-        </div>
+                  {/* Reading */}
+                  <div className={`flex flex-col items-center justify-center p-2 rounded border-2 ${record.readingPages > 0 ? 'border-orange-500 bg-orange-50 text-orange-600' : 'border-gray-200 text-gray-300 bg-gray-50 opacity-50'}`}>
+                      <BookOpen size={20} className={record.readingPages > 0 ? "fill-current" : ""} />
+                      <span className="text-[9px] font-black uppercase mt-1">READ</span>
+                  </div>
+              </div>
+              {/* Optional: Show "Completed" text or arrow to indicate clickable */}
+              <div className="text-center mt-2">
+                   <span className="text-[10px] font-bold text-gray-300 group-hover:text-orange-500 transition-colors">▼ CHECK DETAILS</span>
+              </div>
+          </div>
         )
   };
 
@@ -1752,7 +1757,11 @@ export default function MorningStrategistV17() {
         })}
       </div>
       <div className="mb-8"><label className="block text-xs font-black uppercase text-gray-500 mb-2">自訂練習主題</label><input type="text" value={englishTopic} onChange={(e) => setEnglishTopic(e.target.value)} placeholder="Topic..." className="w-full p-4 border-4 border-black font-bold text-lg" /></div>
-      <div className="flex gap-3 mt-auto"><PowerButton variant="ghost" className="w-1/3 text-sm" onClick={skipReading}><SkipForward size={16} className="mr-1" /> 跳過</PowerButton><PowerButton variant="primary" className="flex-1" onClick={finishEnglish}>完成 <ArrowRight size={20} /></PowerButton></div>
+      <div className="flex gap-3 mt-auto">
+        {/* FIX: Change onClick from skipReading to skipEnglish */}
+        <PowerButton variant="ghost" className="w-1/3 text-sm" onClick={skipEnglish}><SkipForward size={16} className="mr-1" /> 跳過</PowerButton>
+        <PowerButton variant="primary" className="flex-1" onClick={finishEnglish}>完成 <ArrowRight size={20} /></PowerButton>
+      </div>
     </div>
   );
 
@@ -1766,6 +1775,7 @@ export default function MorningStrategistV17() {
             <div className="w-full mb-6"><label className="block text-xs font-black uppercase text-gray-500 mb-2 flex items-center gap-1"><Clock size={14} /> 番茄鐘設定 (Minutes)</label><div className="grid grid-cols-3 gap-3">{[15, 25, 45].map(t => (<button key={t} onClick={() => setReadingTime(t)} className={`py-3 border-4 border-black font-black italic ${readingTime === t ? 'bg-orange-500 text-white shadow-[4px_4px_0px_0px_black]' : 'bg-white hover:bg-gray-50'}`}>{t}m</button>))}</div></div>
             <div className="w-full mb-8"><label className="block text-xs font-black uppercase text-gray-500 mb-2 flex items-center gap-1"><Book size={14} /> 書名 (Optional)</label><input type="text" value={readingBook} onChange={(e) => setReadingBook(e.target.value)} placeholder="正在閱讀..." className="w-full p-3 border-4 border-black font-bold text-lg focus:outline-none focus:border-orange-500" /></div>
             <PowerButton variant="primary" className="w-full py-6 text-2xl mt-auto" onClick={startReadingTimer}>開始閱讀 (Start)</PowerButton>
+            {/* This skipReading is correct as it ends the ritual here */}
             <button onClick={skipReading} className="mt-4 text-gray-400 font-bold text-xs uppercase hover:text-black">Skip Reading</button>
           </div>
         </>
@@ -1792,9 +1802,9 @@ export default function MorningStrategistV17() {
           <MangaHeader title="深度工作" subtitle="專注時段" onBack={goBack} />
           {workStep === 'setup' && (
             <div className="flex-1 flex flex-col items-center justify-center">
-                 <div className="w-full mb-6"><label className="block text-xs font-black uppercase text-gray-500 mb-2 flex items-center gap-1"><Edit3 size={14} /> 任務內容 (Task)</label><input type="text" value={workTopic} onChange={(e) => setWorkTopic(e.target.value)} placeholder="Planning Strategy..." className="w-full p-4 border-4 border-black font-bold text-lg bg-white focus:outline-none focus:border-orange-500" /></div>
-                 <div className="w-full mb-8"><label className="block text-xs font-black uppercase text-gray-500 mb-2 flex items-center gap-1"><Clock size={14} /> 專注時長 (Minutes)</label><div className="grid grid-cols-3 gap-3">{[25, 50, 90].map(t => (<button key={t} onClick={() => setWorkDuration(t)} className={`py-4 border-4 border-black font-black italic text-xl ${workDuration === t ? 'bg-orange-500 text-white shadow-[4px_4px_0px_0px_black]' : 'bg-white hover:bg-gray-100'}`}>{t}</button>))}</div></div>
-                 <PowerButton variant="primary" onClick={startWorkTimer} className="w-full py-6 text-2xl mt-auto">開始專注 (Focus)</PowerButton>
+                   <div className="w-full mb-6"><label className="block text-xs font-black uppercase text-gray-500 mb-2 flex items-center gap-1"><Edit3 size={14} /> 任務內容 (Task)</label><input type="text" value={workTopic} onChange={(e) => setWorkTopic(e.target.value)} placeholder="Planning Strategy..." className="w-full p-4 border-4 border-black font-bold text-lg bg-white focus:outline-none focus:border-orange-500" /></div>
+                   <div className="w-full mb-8"><label className="block text-xs font-black uppercase text-gray-500 mb-2 flex items-center gap-1"><Clock size={14} /> 專注時長 (Minutes)</label><div className="grid grid-cols-3 gap-3">{[25, 50, 90].map(t => (<button key={t} onClick={() => setWorkDuration(t)} className={`py-4 border-4 border-black font-black italic text-xl ${workDuration === t ? 'bg-orange-500 text-white shadow-[4px_4px_0px_0px_black]' : 'bg-white hover:bg-gray-100'}`}>{t}</button>))}</div></div>
+                   <PowerButton variant="primary" onClick={startWorkTimer} className="w-full py-6 text-2xl mt-auto">開始專注 (Focus)</PowerButton>
             </div>
           )}
           {workStep === 'focus' && (
@@ -2061,4 +2071,3 @@ export default function MorningStrategistV17() {
     </div>
   );
 }
-
