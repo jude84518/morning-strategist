@@ -415,7 +415,6 @@ const SeasonStatsDashboard = ({ history }) => {
         const d1 = new Date(sortedDates[i]);
         const d2 = new Date(sortedDates[i + 1]);
         
-        // 確保日期是連續的
         const expectedPrev = new Date(d1);
         expectedPrev.setDate(d1.getDate() - 1);
 
@@ -809,7 +808,7 @@ export default function MorningStrategistV17() {
   const [isNightMode, setIsNightMode] = useState(false);
 
   // 內容狀態
-  // FIXED: 確保 quote 數據在函式定義之後被初始化
+  // FIXED: 確保 quote 數據在函式定義之後被初始化 (使用頂層常量)
   const [todayQuote, setTodayQuote] = useState(
     QUOTE_DATABASE[Math.floor(Math.random() * QUOTE_DATABASE.length)]
   ); 
@@ -980,9 +979,9 @@ export default function MorningStrategistV17() {
 
   // --- Effects (副作用) ---
 
-  // 1. 本地儲存當前進度 (在特定階段)
+  // 1. Local Storage 進度儲存
   useEffect(() => {
-    const activePhases = ['mood-check', 'ritual-selection', 'exercise', 'english', 'reading', 'work-mode', 'asleep']; // 增加 asleep
+    const activePhases = ['mood-check', 'ritual-selection', 'exercise', 'english', 'reading', 'work-mode', 'asleep']; 
     if (activePhases.includes(phase)) {
         const stateToSave = {
             date: new Date().toLocaleDateString('zh-TW'),
@@ -1013,7 +1012,7 @@ export default function MorningStrategistV17() {
     return () => clearInterval(interval);
   }, []);
 
-  // 3. 檢查當天是否已完成儀式 / 恢復本地進度
+  // 3. 檢查 Firestore 完成狀態 / 處理手動重設
   useEffect(() => {
     let hasActiveLocalSession = false;
     let savedPhase = 'sleeping';
@@ -1024,7 +1023,6 @@ export default function MorningStrategistV17() {
             const saved = JSON.parse(savedRaw);
             const today = new Date().toLocaleDateString('zh-TW');
             
-            // 檢查是否是當天的活動階段或睡眠階段
             if (saved.date === today && ['mood-check', 'ritual-selection', 'exercise', 'english', 'reading', 'work-mode', 'asleep'].includes(saved.phase)) {
                 hasActiveLocalSession = true;
                 savedPhase = saved.phase;
@@ -1045,12 +1043,10 @@ export default function MorningStrategistV17() {
     
     // 如果是載入狀態，且沒有有效的本地會話 (非 asleep) 或重設，則檢查 Firestore
     if (phase === 'loading' && !hasActiveLocalSession && !effectiveReset) {
-      // 檢查 Firestore 歷史紀錄
       if (morningHistory.length > 0) {
         const latestMorning = morningHistory.find(r => r.isMorningRoutine);
         if (latestMorning) {
           const today = new Date().toLocaleDateString('zh-TW');
-          // 發現今日已完成的晨間儀式，直接進入 'finished' 頁面
           if (latestMorning.dateDisplay === today && !latestMorning.isWorkSession) { 
             setWakeUpTime(latestMorning.wakeUpTarget);
             setActualWakeUpTime(latestMorning.actualWakeUpTime);
@@ -1069,26 +1065,22 @@ export default function MorningStrategistV17() {
       }
     }
 
-    // 處理恢復邏輯 (將恢復邏輯移到 Auth 之後，但保留初始狀態判斷)
+    // 處理恢復邏輯 (在 Auth useEffect 中執行實際恢復)
     if (phase === 'loading' && !effectiveReset) {
       if (hasActiveLocalSession) {
-        // 只有當 savedPhase 是 active phase 或 'asleep' 時才恢復
-        // 實際的狀態恢復在 auth useEffect 中處理
+        // 交給 Auth useEffect 處理詳細的狀態恢復
       } else if (savedPhase === 'asleep') {
-        // 如果本地狀態是 asleep，則保持 asleep
         setPhase('asleep'); 
       } else {
-        // 否則進入白天主控台
         setPhase('sleeping');
       }
     } else if (phase === 'loading' && effectiveReset) {
-        // 如果是手動重設，強制進入白天主控台
         setPhase('sleeping');
     }
 
   }, [morningHistory, hasManualReset, phase]);
 
-  // 4. 初始化認證、載入名言、恢復會話 (FIXED LOGIC HERE)
+  // 4. 初始化認證、載入名言、恢復會話
   useEffect(() => {
     const initAuth = async () => {
       setIsAuthLoading(true);
@@ -1105,7 +1097,6 @@ export default function MorningStrategistV17() {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       if (phase === 'loading') {
-        // NOTE: quote 狀態已在 useState 處初始化，這裡僅用於確保在 loading 結束後能進入正確的 phase
         
         let restored = false;
         let savedPhaseFromStorage = 'sleeping';
@@ -1122,7 +1113,7 @@ export default function MorningStrategistV17() {
                         setSelectedModules(saved.selectedModules || []); 
                         setCurrentModuleIndex(saved.currentModuleIndex || 0); 
                         
-                        // 關鍵修正：確保 restored = true，並正確設置 phase
+                        // FIXED: 狀態恢復時也需要恢復 quote 數據，但由於 quote 是頂層常量，這裡只需要確認 phase 狀態
                         setPhase(saved.phase); 
                         setIsActive(false); 
                         setIsRestoredSession(true);
@@ -1133,9 +1124,7 @@ export default function MorningStrategistV17() {
             }
         } catch (e) { console.error("Session restore failed:", e) }
         
-        // 如果沒有恢復到活動階段，且不是 finished 狀態 (已在 useEffect 3 處理)，則進入 savedPhase 或 'sleeping'
         if (!restored && phase === 'loading') {
-             // 如果 Local Storage 存儲的是 asleep，就進入 asleep，否則進入 sleeping (主控台)
              if (savedPhaseFromStorage === 'asleep') {
                  setPhase('asleep');
              } else {
@@ -1145,7 +1134,7 @@ export default function MorningStrategistV17() {
       }
     });
     return () => unsubscribe();
-  }, [phase]); // 依賴 phase 確保只運行一次初始化，除非 phase 被外部邏輯重置為 'loading'
+  }, [phase]); 
 
   // --- Login/Logout (登入/登出) ---
   const handleGoogleLogin = async () => {
@@ -2646,7 +2635,7 @@ export default function MorningStrategistV17() {
                     <p className="text-sm font-bold text-slate-400 mb-8">「休息吧，戰士。黎明再來。」</p>
 
                     <PowerButton 
-                        onClick={handleWakeUp} // 直接呼叫 handleWakeUp，進入 mood-check
+                        onClick={handleWakeUp} // 直接呼叫 handleWakeUp, 進入 mood-check
                         variant="primary" 
                         className="text-xl py-6 bg-orange-500 text-white border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-orange-400"
                     >
