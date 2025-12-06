@@ -95,6 +95,7 @@ const db = getFirestore(app);
 
 // Fixed App ID for persistence (固定應用程式 ID)
 const appId = typeof __app_id !== 'undefined' ? __app_id : "morning-strategist-lucas-persistent";
+// 使用本地儲存來實現會話續存
 const LOCAL_STORAGE_KEY = "morning-strategist-lucas-state-v17-mood-fix"; // 工作階段狀態
 const RESET_STATE_KEY = "morning-strategist-daily-reset"; // 永久重設標誌
 
@@ -370,9 +371,9 @@ const TimelineSection = ({ title, color, icon: Icon, children, isLast }) => (
       </div>
       {/* 內容 */}
       <div className="bg-white border-2 border-gray-100 p-4 shadow-sm relative top-1">
-          <h4 className="font-black text-sm uppercase tracking-wider mb-3 flex items-center gap-2 border-b border-gray-100 pb-2">
-              {title}
-          </h4>
+        <h4 className="font-black text-sm uppercase tracking-wider mb-3 flex items-center gap-2 border-b border-gray-100 pb-2">
+          {title}
+        </h4>
           {children}
       </div>
     </div>
@@ -488,12 +489,12 @@ const SeasonStatsDashboard = ({ history }) => {
         </div>
         <div className="flex justify-between items-end">
             <div>
-                <p className="text-gray-400 text-xs font-bold uppercase mb-1">TOTAL LAUNCHES</p>
-                <p className="text-5xl font-black text-white leading-none">{morningRituals.length}</p>
+              <p className="text-gray-400 text-xs font-bold uppercase mb-1">TOTAL LAUNCHES</p>
+              <p className="text-5xl font-black text-white leading-none">{morningRituals.length}</p>
             </div>
             <div className="text-right">
-                <p className="text-orange-500 font-bold text-xs">核心目標</p>
-                <p className="text-white font-bold text-sm">喝水 + 心情紀錄</p>
+              <p className="text-orange-500 font-bold text-xs">核心目標</p>
+              <p className="text-white font-bold text-sm">喝水 + 心情紀錄</p>
             </div>
         </div>
       </div>
@@ -556,15 +557,15 @@ const SeasonStatsDashboard = ({ history }) => {
         </div>
         <div className="grid grid-cols-2 gap-2 text-center">
             <div>
-                <div className="text-2xl font-black text-black">{workSessions.length}</div>
-                <div className="text-[10px] font-bold text-gray-400 uppercase">SESSIONS</div>
+              <div className="text-2xl font-black text-black">{workSessions.length}</div>
+              <div className="text-[10px] font-bold text-gray-400 uppercase">SESSIONS</div>
             </div>
             <div>
-                {/* 顯示小時數和剩餘分鐘數 */}
-                <div className="text-2xl font-black text-amber-600">
-                    {Math.floor(totalWorkMins / 60)}h {totalWorkMins % 60}m
-                </div>
-                <div className="text-[10px] font-bold text-gray-400 uppercase">TOTAL DURATION</div>
+              {/* 顯示小時數和剩餘分鐘數 */}
+              <div className="text-2xl font-black text-amber-600">
+                  {Math.floor(totalWorkMins / 60)}h {totalWorkMins % 60}m
+              </div>
+              <div className="text-[10px] font-bold text-gray-400 uppercase">TOTAL DURATION</div>
             </div>
         </div>
       </div>
@@ -625,27 +626,27 @@ const ScoreCard = ({ record, onClose }) => {
                     <div className="flex items-center gap-4 border-b border-slate-700 pb-4">
                         <div className="text-3xl">{renderIcon(record.mood?.icon) || "🌙"}</div>
                         <div>
-                             <div className="text-xs font-bold text-slate-500 uppercase">心情</div>
-                             <div className="text-xl font-black text-white">{record.mood?.label ? record.mood.label.split(' ')[0] : "Recorded"}</div>
+                           <div className="text-xs font-bold text-slate-500 uppercase">心情</div>
+                           <div className="text-xl font-black text-white">{record.mood?.label ? record.mood.label.split(' ')[0] : "Recorded"}</div>
                         </div>
                     </div>
                     <div>
                         <div className="text-xs font-bold text-slate-500 uppercase mb-2">檢查項目</div>
                         <div className="space-y-2">
-                             {record.checklist?.map(item => (
-                                 <div key={item.id} className="flex items-center gap-2 text-sm">
-                                     <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${item.checked ? 'bg-indigo-500 border-indigo-500' : 'border-slate-300'}`}>
-                                         {item.checked && <Check size={10} className="text-white" />}
-                                     </div>
-                                     <span className={item.checked ? 'text-indigo-200 font-bold' : 'text-slate-500'}>{item.text}</span>
-                                 </div>
-                             ))}
+                           {record.checklist?.map(item => (
+                               <div key={item.id} className="flex items-center gap-2 text-sm">
+                                   <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${item.checked ? 'bg-indigo-500 border-indigo-500' : 'border-slate-300'}`}>
+                                       {item.checked && <Check size={10} className="text-white" />}
+                                   </div>
+                                   <span className={item.checked ? 'text-indigo-200 font-bold' : 'text-slate-500'}>{item.text}</span>
+                               </div>
+                           ))}
                         </div>
                     </div>
                     {record.note && (
                         <div className="bg-slate-800 p-3 rounded border border-slate-700">
-                             <div className="text-[10px] font-bold text-slate-500 uppercase mb-1">筆記</div>
-                             <p className="text-sm font-bold italic text-white">"{record.note}"</p>
+                           <div className="text-[10px] font-bold text-slate-500 uppercase mb-1">筆記</div>
+                           <p className="text-sm font-bold italic text-white">"{record.note}"</p>
                         </div>
                     )}
                 </div>
@@ -873,7 +874,7 @@ export default function MorningStrategistV17() {
     if (now.getHours() < 5) {
         now.setDate(now.getDate() - 1);
     }
-    return now.toLocaleDateString('zh-TW'); 
+    return now.toLocaleDateString('zh-TW');  
   };
 
   // --- Streak Calculation Logic (連勝計算邏輯) ---
@@ -979,8 +980,9 @@ export default function MorningStrategistV17() {
 
   // --- Effects (副作用) ---
 
-  // 1. Local Storage 進度儲存
+  // 1. Local Storage 進度儲存 (核心續存機制)
   useEffect(() => {
+    // 儲存狀態的階段新增 'ritual-selection'
     const activePhases = ['mood-check', 'ritual-selection', 'exercise', 'english', 'reading', 'work-mode', 'asleep']; 
     if (activePhases.includes(phase)) {
         const stateToSave = {
@@ -1023,6 +1025,7 @@ export default function MorningStrategistV17() {
             const saved = JSON.parse(savedRaw);
             const today = new Date().toLocaleDateString('zh-TW');
             
+            // 包含 'ritual-selection' 階段
             if (saved.date === today && ['mood-check', 'ritual-selection', 'exercise', 'english', 'reading', 'work-mode', 'asleep'].includes(saved.phase)) {
                 hasActiveLocalSession = true;
                 savedPhase = saved.phase;
@@ -1107,6 +1110,7 @@ export default function MorningStrategistV17() {
                 const today = new Date().toLocaleDateString('zh-TW');
                 if (saved.date === today) {
                     savedPhaseFromStorage = saved.phase;
+                    // 包含 'ritual-selection'
                     if (['mood-check', 'ritual-selection', 'exercise', 'english', 'reading', 'work-mode', 'asleep'].includes(saved.phase)) {
                         // 恢復所有狀態
                         setWakeUpTime(saved.wakeUpTime); setActualWakeUpTime(saved.actualWakeUpTime); setMood(saved.mood); setIsWaterDrank(saved.isWaterDrank); setSelectedExercise(saved.selectedExercise); setTargetSets(saved.targetSets); setCurrentSet(saved.currentSet); setSetsCompleted(saved.setsCompleted); setSelectedEnglishApps(saved.selectedEnglishApps); setEnglishTopic(saved.englishTopic); setReadingGoal(saved.readingGoal); setReadingTime(saved.readingTime); setReadingBook(saved.readingBook); setReadingStep(saved.readingStep); setActualPagesRead(saved.actualPagesRead); setWorkTopic(saved.workTopic); setWorkDuration(saved.workDuration); setWorkStep(saved.workStep); setTimeLeft(saved.timeLeft); setTotalDuration(saved.totalDuration);
@@ -1125,11 +1129,11 @@ export default function MorningStrategistV17() {
         } catch (e) { console.error("Session restore failed:", e) }
         
         if (!restored && phase === 'loading') {
-             if (savedPhaseFromStorage === 'asleep') {
-                 setPhase('asleep');
-             } else {
-                 setPhase('sleeping');
-             }
+              if (savedPhaseFromStorage === 'asleep') {
+                  setPhase('asleep');
+              } else {
+                  setPhase('sleeping');
+              }
         }
       }
     });
@@ -1250,11 +1254,15 @@ export default function MorningStrategistV17() {
       if (nextIndex < selectedModules.length) {
           // 移動到下一個選定的模組
           setCurrentModuleIndex(nextIndex);
-          setPhase(selectedModules[nextIndex]);
+          const nextModule = selectedModules[nextIndex];
+          setPhase(nextModule);
           SoundEngine.playClick();
           
-          // 如果下一個是閱讀，初始化步驟
-          if (selectedModules[nextIndex] === 'reading') {
+          // 初始化下一個模組的狀態
+          if (nextModule === 'exercise') {
+              initExerciseTimer(selectedExercise || EXERCISE_ROUTINES[0]);
+          }
+          if (nextModule === 'reading') {
               setReadingStep('setup');
           }
 
@@ -1304,20 +1312,30 @@ export default function MorningStrategistV17() {
       switch (phase) {
         case 'bedtime': setPhase('sleeping'); break;
         case 'mood-check': setPhase('sleeping'); break;
-        case 'ritual-selection': setPhase('mood-check'); break; // NEW
+        case 'ritual-selection': setPhase('mood-check'); break; // NEW: 返回心情檢查
 
         case 'exercise': 
         case 'english':
           if (currentModuleIndex > 0) { 
             // 返回前一個選定的模組
-            setCurrentModuleIndex(prev => prev - 1);
-            setPhase(selectedModules[currentModuleIndex - 1]);
+            const prevIndex = currentModuleIndex - 1;
+            setCurrentModuleIndex(prevIndex);
+            setPhase(selectedModules[prevIndex]);
+            // 重置計時器，避免返回時立即觸發完成
+            setTimeLeft(0);
+            setTotalDuration(0);
+            
+            // 如果返回到閱讀，設置為設置步驟
+            if (selectedModules[prevIndex] === 'reading') {
+                setReadingStep('setup');
+            }
           } else { 
             // 返回選擇頁面
             setPhase('ritual-selection'); 
           }
           break;
-
+        
+        // 閱讀細節步驟返回
         case 'reading':
           if (readingStep === 'focus') { 
               setReadingStep('setup'); 
@@ -1329,15 +1347,16 @@ export default function MorningStrategistV17() {
           else { // readingStep === 'setup'
             if (currentModuleIndex > 0) { 
               // 返回前一個選定的模組
-              setCurrentModuleIndex(prev => prev - 1);
-              setPhase(selectedModules[currentModuleIndex - 1]);
+              const prevIndex = currentModuleIndex - 1;
+              setCurrentModuleIndex(prevIndex);
+              setPhase(selectedModules[prevIndex]);
             } else { 
               // 返回選擇頁面
               setPhase('ritual-selection'); 
             }
           }
           break;
-        
+          
         case 'work-mode':
           if (workStep === 'focus') setWorkStep('setup');
           else setPhase('sleeping'); 
@@ -1591,8 +1610,8 @@ export default function MorningStrategistV17() {
     setReadingGoal(15);
     setReadingTime(25);
     setReadingBook("");
-    setSelectedModules([]); // NEW
-    setCurrentModuleIndex(0); // NEW
+    setSelectedModules([]); // NEW: 清空選定的模組
+    setCurrentModuleIndex(0); // NEW: 重設模組索引
     
     // 睡前重設
     setBedtimeChecklist(BEDTIME_CHECKLIST_DEFAULTS);
@@ -1636,14 +1655,14 @@ export default function MorningStrategistV17() {
       <div className="p-4 sm:p-6 pb-24 flex flex-col min-h-full">
           <MangaHeader 
               title="策略模組選擇" 
-              subtitle="選擇今日的加強訓練。" 
+              subtitle="選擇今日的加強訓練。選擇零項將直接完成儀式。" 
               step="2" 
               onBack={goBack} 
           />
           
           <div className="mb-8">
                <div className="bg-white border-4 border-black p-4 mb-6 shadow-[4px_4px_0px_0px_rgba(249,115,22,1)]">
-                  <p className="text-sm font-black text-black uppercase mb-2 flex items-center gap-2">
+                 <p className="text-sm font-black text-black uppercase mb-2 flex items-center gap-2">
                       <CheckSquare size={16} className="text-orange-500"/> 核心任務 (已完成)
                   </p>
                   <div className="text-xs font-bold text-gray-500 pl-6 border-l-4 border-orange-500 space-y-1">
@@ -1805,7 +1824,7 @@ export default function MorningStrategistV17() {
                                 
                                 <div className="space-y-1 mb-3">
                                   <div className="text-[10px] font-bold text-slate-400 uppercase">
-                                      檢查項目 ({checkedCount}/{totalCount})
+                                       檢查項目 ({checkedCount}/{totalCount})
                                   </div>
                                     {record.checklist?.map(item => (
                                         <div key={item.id} className="flex items-center gap-2 text-xs">
@@ -1926,7 +1945,7 @@ export default function MorningStrategistV17() {
               </div>
               {/* Optional: Show "Completed" text or arrow to indicate clickable */}
               <div className="text-center mt-2">
-                     <span className="text-[10px] font-bold text-gray-300 group-hover:text-orange-500 transition-colors">▼ CHECK DETAILS</span>
+                      <span className="text-[10px] font-bold text-gray-300 group-hover:text-orange-500 transition-colors">▼ CHECK DETAILS</span>
               </div>
           </div>
       )
@@ -2132,7 +2151,8 @@ export default function MorningStrategistV17() {
             <h3 className={`text-3xl font-black italic ${colorClass} mb-1 animate-pulse`}>{moodSyncRate}</h3>
             <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden"><div className={`h-full ${barColorClass} w-full animate-slide-stripes`}></div></div>
             <p className="text-black font-bold text-lg leading-tight mb-8">"{moodFeedback}"</p>
-            <PowerButton variant="success" onClick={confirmMoodAndStart} className="w-full py-4 text-xl">開始策略選擇 <ArrowRight size={20} /></PowerButton>
+            {/* FIXED: 進入新的選擇階段 */}
+            <PowerButton variant="success" onClick={confirmMoodAndStart} className="w-full py-4 text-xl">進入策略選擇 <ArrowRight size={20} /></PowerButton>
           </div>
         </div>
       );
@@ -2543,7 +2563,7 @@ export default function MorningStrategistV17() {
             「{restQuote.text}」
           </p>
           <div className="text-right">
-            <p className="text-xs text-gray-400 mt-1 font-black italic">— {restQuote.char}</p>
+            <p className="text-xs font-black italic text-gray-500">— {restQuote.char}</p>
           </div>
         </div>
         {/* 底部按鈕 */}
@@ -2582,7 +2602,7 @@ export default function MorningStrategistV17() {
           </div>
         )}
         
-        {/* 會話恢復提示 */}
+        {/* 會話恢復提示 (自動續存提示) */}
         {isRestoredSession && (
           <div className="absolute top-16 left-0 w-full bg-green-500 text-white text-center text-xs font-bold py-1 z-50 animate-fade-in flex items-center justify-center gap-2">
             <CloudLightning size={14} className="fill-current" /> 已自動恢復進度
