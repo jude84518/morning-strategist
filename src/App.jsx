@@ -62,6 +62,8 @@ import {
   Dumbbell,
   Brain,
   Calendar as CalendarIcon,
+  Square, // Added for unchecked state
+  ListTodo // Added for planning icon
 } from 'lucide-react';
 
 // --- Firebase Configuration ---
@@ -731,7 +733,7 @@ const ScoreCard = ({ record, onClose }) => {
 // --- Main App Component ---
 export default function MorningStrategistV17() {
   const [user, setUser] = useState(null);
-  const [phase, setPhase] = useState('loading'); // sleeping, mood-check, exercise, english, reading, work-mode, finished
+  const [phase, setPhase] = useState('loading'); // sleeping, mood-check, planning, exercise, english, reading, work-mode, finished
   const [isRestoredSession, setIsRestoredSession] = useState(false);
   const [isLocalSaved, setIsLocalSaved] = useState(false);
   
@@ -767,6 +769,9 @@ export default function MorningStrategistV17() {
   const [actualWakeUpTime, setActualWakeUpTime] = useState(null);
   const [mood, setMood] = useState(null);
   const [isWaterDrank, setIsWaterDrank] = useState(false);
+  const [todaysMissions, setTodaysMissions] = useState(['exercise', 'english', 'reading']); // New: Selected Missions
+  
+  // Task specific states
   const [selectedExercise, setSelectedExercise] = useState(EXERCISE_ROUTINES[0]);
   const [selectedEnglishApps, setSelectedEnglishApps] = useState([]);
   const [englishTopic, setEnglishTopic] = useState("");
@@ -924,14 +929,28 @@ export default function MorningStrategistV17() {
       return currentUid;
   };
 
+  // --- Helper: Get Next Phase Logic ---
+  const getNextMission = (current) => {
+      const order = ['exercise', 'english', 'reading'];
+      const currentIdx = current === 'planning' ? -1 : order.indexOf(current);
+      
+      // Find the next task in 'order' that is also in 'todaysMissions'
+      for (let i = currentIdx + 1; i < order.length; i++) {
+          if (todaysMissions.includes(order[i])) {
+              return order[i];
+          }
+      }
+      return 'finished'; // No more tasks
+  };
+
   // --- Effects ---
   useEffect(() => {
-    const activePhases = ['mood-check', 'exercise', 'english', 'reading', 'work-mode'];
+    const activePhases = ['mood-check', 'planning', 'exercise', 'english', 'reading', 'work-mode'];
     if (activePhases.includes(phase)) {
         const stateToSave = {
             date: new Date().toLocaleDateString('zh-TW'),
             timestamp: Date.now(),
-            phase, wakeUpTime, actualWakeUpTime, mood, isWaterDrank, 
+            phase, wakeUpTime, actualWakeUpTime, mood, isWaterDrank, todaysMissions,
             selectedExercise, targetSets, currentSet, setsCompleted, 
             selectedEnglishApps, englishTopic, readingGoal, readingTime, 
             readingBook, readingStep, actualPagesRead, workTopic, workDuration, 
@@ -939,7 +958,7 @@ export default function MorningStrategistV17() {
         };
         saveLocalProgress(stateToSave);
     }
-  }, [phase, wakeUpTime, actualWakeUpTime, mood, isWaterDrank, selectedExercise, targetSets, currentSet, setsCompleted, selectedEnglishApps, englishTopic, readingGoal, readingTime, readingBook, readingStep, actualPagesRead, workTopic, workDuration, workStep, timeLeft, totalDuration]);
+  }, [phase, wakeUpTime, actualWakeUpTime, mood, isWaterDrank, todaysMissions, selectedExercise, targetSets, currentSet, setsCompleted, selectedEnglishApps, englishTopic, readingGoal, readingTime, readingBook, readingStep, actualPagesRead, workTopic, workDuration, workStep, timeLeft, totalDuration]);
 
   useEffect(() => {
     const updateTimeContext = () => {
@@ -961,7 +980,7 @@ export default function MorningStrategistV17() {
         if (savedRaw) {
             const saved = JSON.parse(savedRaw);
             const today = new Date().toLocaleDateString('zh-TW');
-            if (saved.date === today && ['mood-check', 'exercise', 'english', 'reading', 'work-mode'].includes(saved.phase)) {
+            if (saved.date === today && ['mood-check', 'planning', 'exercise', 'english', 'reading', 'work-mode'].includes(saved.phase)) {
                 hasActiveLocalSession = true;
             }
         }
@@ -1018,7 +1037,9 @@ export default function MorningStrategistV17() {
                 const saved = JSON.parse(savedRaw);
                 const today = new Date().toLocaleDateString('zh-TW');
                 if (saved.date === today) {
-                    setWakeUpTime(saved.wakeUpTime); setActualWakeUpTime(saved.actualWakeUpTime); setMood(saved.mood); setIsWaterDrank(saved.isWaterDrank); setSelectedExercise(saved.selectedExercise); setTargetSets(saved.targetSets); setCurrentSet(saved.currentSet); setSetsCompleted(saved.setsCompleted); setSelectedEnglishApps(saved.selectedEnglishApps); setEnglishTopic(saved.englishTopic); setReadingGoal(saved.readingGoal); setReadingTime(saved.readingTime); setReadingBook(saved.readingBook); setReadingStep(saved.readingStep); setActualPagesRead(saved.actualPagesRead); setWorkTopic(saved.workTopic); setWorkDuration(saved.workDuration); setWorkStep(saved.workStep); setTimeLeft(saved.timeLeft); setTotalDuration(saved.totalDuration);
+                    setWakeUpTime(saved.wakeUpTime); setActualWakeUpTime(saved.actualWakeUpTime); setMood(saved.mood); setIsWaterDrank(saved.isWaterDrank); 
+                    if(saved.todaysMissions) setTodaysMissions(saved.todaysMissions);
+                    setSelectedExercise(saved.selectedExercise); setTargetSets(saved.targetSets); setCurrentSet(saved.currentSet); setSetsCompleted(saved.setsCompleted); setSelectedEnglishApps(saved.selectedEnglishApps); setEnglishTopic(saved.englishTopic); setReadingGoal(saved.readingGoal); setReadingTime(saved.readingTime); setReadingBook(saved.readingBook); setReadingStep(saved.readingStep); setActualPagesRead(saved.actualPagesRead); setWorkTopic(saved.workTopic); setWorkDuration(saved.workDuration); setWorkStep(saved.workStep); setTimeLeft(saved.timeLeft); setTotalDuration(saved.totalDuration);
                     setPhase(saved.phase); setIsActive(false); setIsRestoredSession(true);
                     setTimeout(() => setIsRestoredSession(false), 3000);
                     restored = true;
@@ -1092,12 +1113,22 @@ export default function MorningStrategistV17() {
     switch (phase) {
       case 'bedtime': setPhase('sleeping'); break;
       case 'mood-check': setPhase('sleeping'); break;
-      case 'exercise': setPhase('mood-check'); break;
-      case 'english': setPhase('exercise'); break;
+      case 'planning': setPhase('mood-check'); break;
+      case 'exercise': setPhase('planning'); break;
+      case 'english': 
+        // Logic: if exercise was planned, go back to exercise, else planning
+        if (todaysMissions.includes('exercise')) setPhase('exercise');
+        else setPhase('planning');
+        break;
       case 'reading':
         if (readingStep === 'focus') setReadingStep('setup');
         else if (readingStep === 'result') setReadingStep('focus');
-        else setPhase('english');
+        else {
+            // Logic: find previous planned phase
+            if (todaysMissions.includes('english')) setPhase('english');
+            else if (todaysMissions.includes('exercise')) setPhase('exercise');
+            else setPhase('planning');
+        }
         break;
       case 'work-mode':
         if (workStep === 'focus') setWorkStep('setup');
@@ -1179,16 +1210,43 @@ export default function MorningStrategistV17() {
     else { setMoodSyncRate("120% (極限超頻!)"); setMoodFeedback("太強了！今天你是球場上的國王！全速前進！"); }
   };
 
-  const confirmMoodAndStart = () => { setCurrentSet(1); setTargetSets(1); initExerciseTimer(EXERCISE_ROUTINES[0]); setPhase('exercise'); };
+  // UPDATED: Navigate to Planning phase
+  const confirmMoodAndStart = () => { setPhase('planning'); };
+  
+  // New Planning Logic
+  const toggleMission = (mission) => {
+      setTodaysMissions(prev => {
+          if (prev.includes(mission)) return prev.filter(m => m !== mission);
+          return [...prev, mission];
+      });
+  };
+
+  const engageMission = () => {
+      const next = getNextMission('planning');
+      if (next === 'finished') {
+          // If no missions selected, we might want to just completeDay or show alert
+          completeDay(true); 
+      } else {
+          // Reset states for safety
+          setCurrentSet(1); setTargetSets(1);
+          if (next === 'exercise') initExerciseTimer(EXERCISE_ROUTINES[0]);
+          setPhase(next);
+      }
+  };
+
   const initExerciseTimer = (routine) => { setSelectedExercise(routine); setTimeLeft(routine.duration); setTotalDuration(routine.duration); setIsActive(false); setCurrentSet(1); };
-  const handleFinishExercise = () => { setSetsCompleted(currentSet); setPhase('english'); };
-  const skipExercise = () => { setSelectedExercise(null); setIsActive(false); setSetsCompleted(0); setPhase('english'); };
+  
+  // UPDATED: Navigation using getNextMission
+  const handleFinishExercise = () => { setSetsCompleted(currentSet); setPhase(getNextMission('exercise')); };
+  const skipExercise = () => { setSelectedExercise(null); setIsActive(false); setSetsCompleted(0); setPhase(getNextMission('exercise')); };
+  
   const toggleEnglishApp = (id) => { setSelectedEnglishApps(prev => { if (prev.includes(id)) return prev.filter(appId => appId !== id); return [...prev, id]; }); };
   
-  // FIX: This function correctly moves to the next phase (reading)
-  const skipEnglish = () => { setSelectedEnglishApps([]); setEnglishTopic(""); setPhase('reading'); };
-
-  const finishEnglish = () => { setPhase('reading'); };
+  // UPDATED: Navigation using getNextMission
+  const skipEnglish = () => { setSelectedEnglishApps([]); setEnglishTopic(""); setPhase(getNextMission('english')); };
+  const finishEnglish = () => { setPhase(getNextMission('english')); };
+  
+  // Reading always goes to result/finish currently (last step)
   const startReadingTimer = () => { setReadingStep('focus'); setTimeLeft(readingTime * 60); setTotalDuration(readingTime * 60); setIsActive(true); SoundEngine.init(); };
   const startWorkTimer = () => { setWorkStep('focus'); setTimeLeft(workDuration * 60); setTotalDuration(workDuration * 60); setIsActive(true); SoundEngine.init(); };
   
@@ -1201,8 +1259,34 @@ export default function MorningStrategistV17() {
     try {
         const uid = await ensureAuthenticated();
         const actualDuration = isSkipped ? 0 : (totalDuration > 0 ? Math.max(0, Math.ceil((totalDuration - timeLeft) / 60)) : 0);
-        // Morning Routine usually happens after waking up, so new Date() is correct.
-        const record = { isMorningRoutine: true, wakeUpTarget: wakeUpTime, actualWakeUpTime: actualWakeUpTime || "N/A", mood: mood, waterDrank: isWaterDrank, exercise: selectedExercise, exerciseSets: setsCompleted, english: selectedEnglishApps, englishTopic: englishTopic, readingPages: parseInt(actualPagesRead) || 0, readingDuration: actualDuration, readingBook: readingBook, dateDisplay: new Date().toLocaleDateString('zh-TW'), createdAt: serverTimestamp(), timestamp: Date.now() };
+        
+        // Logic for missions that were NOT selected -> should they be null?
+        // Current structure supports saving whatever we have.
+        // If a task is not in todaysMissions, its specific data (like selectedExercise) might be null or stale, 
+        // but since we navigated past it, user shouldn't have set it. 
+        // We explicitly set skipped/unselected tasks to null/empty for clarity in DB.
+        
+        const finalExercise = todaysMissions.includes('exercise') ? selectedExercise : null;
+        const finalEnglish = todaysMissions.includes('english') ? selectedEnglishApps : [];
+        const finalReadingPages = todaysMissions.includes('reading') ? (parseInt(actualPagesRead) || 0) : 0;
+
+        const record = { 
+            isMorningRoutine: true, 
+            wakeUpTarget: wakeUpTime, 
+            actualWakeUpTime: actualWakeUpTime || "N/A", 
+            mood: mood, 
+            waterDrank: isWaterDrank, 
+            exercise: finalExercise, 
+            exerciseSets: todaysMissions.includes('exercise') ? setsCompleted : 0, 
+            english: finalEnglish, 
+            englishTopic: todaysMissions.includes('english') ? englishTopic : "", 
+            readingPages: finalReadingPages, 
+            readingDuration: actualDuration, 
+            readingBook: readingBook, 
+            dateDisplay: new Date().toLocaleDateString('zh-TW'), 
+            createdAt: serverTimestamp(), 
+            timestamp: Date.now() 
+        };
         await addDoc(collection(db, 'artifacts', appId, 'users', uid, 'morning_sessions'), record);
         setPhase('finished');
     } catch (e) { setErrorMsg("自動存檔失敗: " + e.message); } finally { setIsSaving(false); }
@@ -1233,6 +1317,7 @@ export default function MorningStrategistV17() {
     setCurrentSet(1);
     setActualWakeUpTime(null);
     setMood(null);
+    setTodaysMissions(['exercise', 'english', 'reading']); // Reset missions
     setSelectedExercise(EXERCISE_ROUTINES[0]);
     setSelectedEnglishApps([]);
     setEnglishTopic("");
@@ -1693,7 +1778,8 @@ export default function MorningStrategistV17() {
             <h3 className={`text-3xl font-black italic ${colorClass} mb-1 animate-pulse`}>{moodSyncRate}</h3>
             <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden"><div className={`h-full ${barColorClass} w-full animate-slide-stripes`}></div></div>
             <p className="text-black font-bold text-lg leading-tight mb-8">"{moodFeedback}"</p>
-            <PowerButton variant="success" onClick={confirmMoodAndStart} className="w-full py-4 text-xl">前往熱身 <ArrowRight size={20} /></PowerButton>
+            {/* UPDATED: Text to imply Planning step */}
+            <PowerButton variant="success" onClick={confirmMoodAndStart} className="w-full py-4 text-xl">今日戰略規劃 <ArrowRight size={20} /></PowerButton>
           </div>
         </div>
       );
@@ -1714,6 +1800,52 @@ export default function MorningStrategistV17() {
       </div>
     );
   };
+
+  // --- NEW: Planning View ---
+  const renderPlanningView = () => (
+      <div className="p-4 sm:p-6 pb-24 flex flex-col min-h-full">
+          <MangaHeader title="戰略規劃" subtitle="選擇今日戰場。" step="1.5" onBack={() => goBack()} />
+          <div className="flex-1 flex flex-col justify-center">
+              <div className="space-y-4 mb-8">
+                  {[
+                      { id: 'exercise', label: '肉體活性化 (Body)', icon: <Dumbbell size={20} />, color: 'text-emerald-600', border: 'border-emerald-500' },
+                      { id: 'english', label: '語言特訓 (Lang)', icon: <Mic size={20} />, color: 'text-blue-600', border: 'border-blue-500' },
+                      { id: 'reading', label: '閱讀儀式 (Mind)', icon: <BookOpen size={20} />, color: 'text-orange-600', border: 'border-orange-500' },
+                  ].map(mission => {
+                      const isSelected = todaysMissions.includes(mission.id);
+                      return (
+                          <div 
+                              key={mission.id} 
+                              onClick={() => { toggleMission(mission.id); SoundEngine.playClick(); }}
+                              className={`flex items-center gap-4 p-5 border-4 cursor-pointer transition-all transform duration-200 ${
+                                  isSelected 
+                                  ? `bg-white ${mission.border} shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] scale-[1.02] opacity-100` 
+                                  : 'bg-gray-50 border-gray-200 text-gray-400 hover:border-gray-400 hover:bg-white hover:scale-[1.01] hover:text-gray-600'
+                              }`}
+                          >
+                              {/* Icon Color Logic: Show color when selected, gray when not */}
+                              <div className={`text-2xl transition-colors ${isSelected ? mission.color : 'text-gray-300'}`}>{mission.icon}</div>
+                              
+                              {/* Text Logic: Removed line-through, using color/opacity to indicate state */}
+                              <span className={`font-black italic uppercase text-lg flex-1 transition-colors ${isSelected ? 'text-black' : 'text-gray-400'}`}>
+                                  {mission.label}
+                              </span>
+                              
+                              {/* Checkbox Logic */}
+                              {isSelected ? <CheckSquare size={28} className="text-black fill-current" /> : <Square size={28} className="text-gray-300" />}
+                          </div>
+                      );
+                  })}
+              </div>
+              <p className="text-center text-gray-400 text-xs font-bold uppercase mb-4 tracking-widest">
+                  {todaysMissions.length === 0 ? "休息日 (REST DAY)" : `${todaysMissions.length} MISSIONS SELECTED`}
+              </p>
+              <PowerButton variant={todaysMissions.length > 0 ? "primary" : "secondary"} onClick={engageMission} className="w-full py-5 text-xl">
+                  {todaysMissions.length > 0 ? "確認並開始 (ENGAGE)" : "確認休息 (REST)"} <ArrowRight size={20} />
+              </PowerButton>
+          </div>
+      </div>
+  );
 
   const renderExerciseView = () => (
     <div className="p-4 sm:p-6 pb-24 flex flex-col min-h-full">
@@ -2045,6 +2177,7 @@ export default function MorningStrategistV17() {
           )}
           {phase === 'history' && renderHistoryListView()}
           {phase === 'mood-check' && renderMoodCheckView()}
+          {phase === 'planning' && renderPlanningView()}
           {phase === 'exercise' && renderExerciseView()}
           {phase === 'english' && renderEnglishView()}
           {phase === 'reading' && renderReadingView()}
@@ -2053,7 +2186,17 @@ export default function MorningStrategistV17() {
           {phase === 'bedtime' && renderBedtimeView()}
         </div>
         <div className="bg-black text-gray-500 text-[9px] font-mono p-1 text-center uppercase tracking-widest flex justify-center items-center gap-2 relative z-50"><Database size={10} /> 系統狀態: 本地備份中</div>
-        {['mood-check', 'exercise', 'english', 'reading'].includes(phase) && (<div className="h-4 shrink-0 bg-black border-t-4 border-orange-500 flex z-50">{['mood-check', 'exercise', 'english', 'reading'].map((step, idx) => { const phases = ['mood-check', 'exercise', 'english', 'reading']; const currentIdx = phases.indexOf(phase); const isCompleted = idx <= currentIdx; return (<div key={step} className={`h-full flex-1 border-r-2 border-orange-500 relative transition-all duration-500 ${isCompleted ? 'bg-orange-500' : 'bg-gray-800'}`} />)})}</div>)}
+        {/* UPDATED PROGRESS BAR: Includes selected missions */}
+        {['mood-check', 'planning', ...todaysMissions].includes(phase) && (
+            <div className="h-4 shrink-0 bg-black border-t-4 border-orange-500 flex z-50">
+                {['mood-check', 'planning', ...todaysMissions].map((step, idx) => { 
+                    const flow = ['mood-check', 'planning', ...todaysMissions]; 
+                    const currentIdx = flow.indexOf(phase); 
+                    const isCompleted = idx <= currentIdx; 
+                    return (<div key={step} className={`h-full flex-1 border-r-2 border-orange-500 relative transition-all duration-500 ${isCompleted ? 'bg-orange-500' : 'bg-gray-800'}`} />)
+                })}
+            </div>
+        )}
         {viewingRecord && <ScoreCard record={viewingRecord} onClose={() => setViewingRecord(null)} />}
         {recordToDelete && (<DeleteConfirmModal isDeleting={isDeleting} onConfirm={confirmDelete} onCancel={() => setRecordToDelete(null)} />)}
       </div>
