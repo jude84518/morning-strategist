@@ -63,7 +63,8 @@ import {
   Brain,
   Calendar as CalendarIcon,
   Square, // Added for unchecked state
-  ListTodo // Added for planning icon
+  ListTodo, // Added for planning icon
+  Power // Added for reboot icon
 } from 'lucide-react';
 
 // --- Firebase Configuration ---
@@ -733,7 +734,7 @@ const ScoreCard = ({ record, onClose }) => {
 // --- Main App Component ---
 export default function MorningStrategistV17() {
   const [user, setUser] = useState(null);
-  const [phase, setPhase] = useState('loading'); // sleeping, mood-check, planning, exercise, english, reading, work-mode, finished
+  const [phase, setPhase] = useState('loading'); // sleeping, mood-check, planning, exercise, english, reading, work-mode, finished, shutdown
   const [isRestoredSession, setIsRestoredSession] = useState(false);
   const [isLocalSaved, setIsLocalSaved] = useState(false);
   
@@ -1181,7 +1182,8 @@ export default function MorningStrategistV17() {
       // 此處已使用 getAdjustedDate() 確保凌晨紀錄會歸類到前一天
       const record = { type: 'bedtime', checklist: cleanChecklist, note: bedtimeNote, mood: bedtimeMood, dateDisplay: getAdjustedDate(), createdAt: serverTimestamp(), timestamp: Date.now() };
       await addDoc(collection(db, 'artifacts', appId, 'users', uid, 'bedtime_sessions'), record);
-      setTimeout(() => { setIsBedtimeSaving(false); setPhase('sleeping'); if (contentRef.current) contentRef.current.scrollTop = 0; }, 1500);
+      // CHANGED: Redirect to 'shutdown' instead of 'sleeping'
+      setTimeout(() => { setIsBedtimeSaving(false); setPhase('shutdown'); if (contentRef.current) contentRef.current.scrollTop = 0; }, 1500);
     } catch (e) { console.error("Bedtime save failed:", e); setErrorMsg(`存檔失敗: ${e.message}`); setIsBedtimeSaving(false); }
   };
 
@@ -2066,12 +2068,38 @@ export default function MorningStrategistV17() {
     );
   };
 
+  const renderShutdownView = () => (
+      <div className="h-full flex flex-col items-center justify-center p-6 bg-black text-indigo-900 relative z-50">
+          <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
+              <Moon size={300} className="fill-current" />
+          </div>
+          <div className="relative z-10 text-center space-y-6">
+              <div className="inline-block border-4 border-indigo-900 p-4 transform rotate-3">
+                  <h2 className="text-4xl font-black italic uppercase tracking-tighter text-indigo-500">SYSTEM<br/>OFFLINE</h2>
+              </div>
+              <p className="text-sm font-bold text-indigo-700 uppercase tracking-widest bg-indigo-900/10 px-4 py-2">
+                  Sleep Mode Activated
+              </p>
+              <div className="text-indigo-800/50 text-xs font-mono mt-8">
+                  <p>RECOVERY PROTOCOL: INITIATED</p>
+                  <p>WAKE UP TIME: {wakeUpTime}</p>
+              </div>
+          </div>
+          <button 
+              onClick={() => setPhase('sleeping')} 
+              className="absolute bottom-8 px-6 py-3 border-2 border-indigo-900/30 text-indigo-900/50 hover:text-indigo-500 hover:border-indigo-500 font-black uppercase text-xs tracking-widest transition-all flex items-center gap-2"
+          >
+              <Power size={14} /> System Reboot (New Day)
+          </button>
+      </div>
+  );
+
   return (
     <div className="h-screen w-full bg-gray-900 flex items-center justify-center font-sans text-slate-800 overflow-hidden">
       <div className="w-full max-w-md h-full sm:h-[90vh] sm:rounded-3xl bg-white flex flex-col relative overflow-hidden shadow-2xl sm:border-8 sm:border-gray-800">
         {errorMsg && (<div className="absolute top-0 left-0 w-full bg-red-600 text-white text-center text-xs font-bold py-2 z-[60] animate-fade-in flex items-center justify-center gap-2 shadow-lg cursor-pointer" onClick={() => setErrorMsg(null)}><AlertCircle size={14} /> {errorMsg} <X size={14} /></div>)}
         {isRestoredSession && (<div className="absolute top-16 left-0 w-full bg-green-500 text-white text-center text-xs font-bold py-1 z-50 animate-fade-in flex items-center justify-center gap-2"><CloudLightning size={14} className="fill-current" /> 已自動恢復進度</div>)}
-        {phase !== 'loading' && phase !== 'finished' && phase !== 'sleeping' && phase !== 'history' && phase !== 'bedtime' && phase !== 'work-mode' && (
+        {phase !== 'loading' && phase !== 'finished' && phase !== 'sleeping' && phase !== 'history' && phase !== 'bedtime' && phase !== 'work-mode' && phase !== 'shutdown' && (
           <div className="h-16 shrink-0 bg-black border-b-4 border-orange-500 flex items-center justify-between px-4 sm:px-6 relative z-50 shadow-[0px_4px_0px_0px_rgba(249,115,22,1)]">
             <div className="flex items-center gap-3">
                 {/* MODIFIED: Make Logo Clickable to go HOME */}
@@ -2184,6 +2212,7 @@ export default function MorningStrategistV17() {
           {phase === 'work-mode' && renderWorkModeView()}
           {phase === 'finished' && renderFinishedView()}
           {phase === 'bedtime' && renderBedtimeView()}
+          {phase === 'shutdown' && renderShutdownView()}
         </div>
         <div className="bg-black text-gray-500 text-[9px] font-mono p-1 text-center uppercase tracking-widest flex justify-center items-center gap-2 relative z-50"><Database size={10} /> 系統狀態: 本地備份中</div>
         {/* UPDATED PROGRESS BAR: Includes selected missions */}
